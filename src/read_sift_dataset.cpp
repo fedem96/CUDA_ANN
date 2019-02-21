@@ -95,12 +95,12 @@ bool readVecsFile(string fileName, vector< vector<U> >& vectors, bool verbose = 
 					break;
 				}
 			}
-			delete[] rawVectorData;
 			vector<U> aVector;
 			aVector.reserve( vectorDim );
 			for( int i=0; i<rawVectorDim; i++ ) {
 				aVector.push_back( static_cast<U>(rawVectorData[i]) );
 			}
+			delete[] rawVectorData;
 			vectors.push_back( aVector );
 		}
 		file.close();
