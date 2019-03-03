@@ -14,7 +14,7 @@
 template <typename T>
 class Search{
 public:
-    virtual void search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t numResults) = 0;
+    virtual void search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t &numResults) = 0;
     virtual ~Search() {};
 };
 
@@ -22,7 +22,7 @@ template <typename T>
 class CpuSearch : public Search<T> {
 public:
     CpuSearch(const std::vector< std::vector<T> > &dataset, const bool deepcopy=false);
-    void search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t numResults) override;
+    void search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t &numResults) override;
     virtual ~CpuSearch();
 private:
     //T* dataset;
@@ -51,7 +51,7 @@ kdTree(dataset[0].size(), dataset, 10 /* max leaf */ ) // occhio a max leaf!
 
 template<typename T>
 void CpuSearch<T>::
-search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqrt, const size_t numResults){
+search(const std::vector<T> &query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqrt, const size_t &numResults){
 
 
     // construct a kd-tree index:

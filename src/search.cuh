@@ -4,6 +4,7 @@
 #include <cuda.h>
 #include <thrust/sort.h>
 #include "search.hpp"
+#define BLOCK_SIZE 1024
 
 //#define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }
@@ -13,7 +14,7 @@ template <typename T>
 class CudaSearch : public Search<T> {
 public:
     CudaSearch(const std::vector< std::vector<T> > &dataset);
-    void search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t numResults) override;
+    void search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults) override;
     virtual ~CudaSearch();
 private:
     T* dataset;
@@ -74,33 +75,56 @@ CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datase
 }
 
 template <typename T>
-__global__ void _cudaSearch(const T* dataset, const T* query, size_t* nnIndexes, T* nnDistancesSqr, const size_t datasetSize, const int spaceDim){
+__global__ void _cudaSearch(const T* __restrict__ dataset, const T* __restrict__ query, size_t* __restrict__ nnIndexes, T* __restrict__ nnDistancesSqr, const size_t datasetSize, const int spaceDim){
     size_t i;
-    int j;
-
-    i = blockIdx.x * 1024 + threadIdx.x;
+    i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
     if(i >= datasetSize)
         return;
     T dist = 0;
+    int j;
     for(j=0; j < spaceDim; j++){
         const T diff = query[j] - dataset[i*spaceDim + j];
         dist = dist + (diff * diff);
     }
+//  loop unrolling
+//    T* ptrLastQuery = query + spaceDim;
+//    T* ptrLastQueryGroup = ptrLastQuery - 3;
+//    dataset = dataset + (i*spaceDim);
+//    while (query < ptrLastQueryGroup) {
+//        const T diff0 = query[0] - dataset[0];
+//        const T diff1 = query[1] - dataset[1];
+//        const T diff2 = query[2] - dataset[2];
+//        const T diff3 = query[3] - dataset[3];
+//        const T diff4 = query[4] - dataset[4];
+//        const T diff5 = query[5] - dataset[5];
+//        const T diff6 = query[6] - dataset[6];
+//        const T diff7 = query[7] - dataset[7];
+//        dist = dist + (diff0 * diff0) + (diff1 * diff1) + (diff2 * diff2) + (diff3 * diff3) + (diff4 * diff4) + (diff5 * diff5) + (diff6 * diff6) + (diff7 * diff7);
+//        query = query + 8;
+//        dataset = dataset + 8;
+//    }
+////    while (query < ptrLastQueryGroup) {
+////        const T diff = query[0] - dataset[0];
+////        dist = dist + (diff*diff);
+////        query += 1;
+////        dataset += 1;
+////    }
+
     nnDistancesSqr[i] = dist;
     nnIndexes[i] = i;
 }
 
 template <typename T>
 void CudaSearch<T>::
-search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t numResults){
+search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults){
 
 
     CUDA_CHECK_RETURN(
             cudaMemcpy(this->query, &host_query[0], sizeof(T) * host_query.size(), cudaMemcpyHostToDevice)
     );
 
-    int numBlocks = static_cast<int>((datasetSize+1023) / 1024);
-    _cudaSearch<<<numBlocks,1024>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, host_query.size());
+    int numBlocks = static_cast<int>((datasetSize+BLOCK_SIZE-1) / BLOCK_SIZE);
+    _cudaSearch<<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, host_query.size());
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
     thrust::device_ptr<T> device_thrustDistances(this->nnDistancesSqr);

@@ -55,6 +55,9 @@ int main(int argc, char **argv)
     std::cout << "\nReading groundtruth for queries" << std::endl;
 	assert((readVecsFile<int,int>(groundtruthFileName, grthVec, true)));
 
+    //host_dataset = std::vector< std::vector<float> >(host_dataset.begin(), host_dataset.begin() + 10000);
+    host_dataset.resize(10000);
+
 	const size_t datasetSize = host_dataset.size();
     assert(queryVec.size() == grthVec.size());
 
@@ -63,23 +66,26 @@ int main(int argc, char **argv)
     /* some print to understand data */
     dataPrint(host_dataset, grthVec, queryVec);
 
-    for(int i=0; i<grthVec.size(); i++)
-        for(int j=0; j<grthVec[0].size(); j++)
-            if(!(grthVec[i][j] >= 0 && grthVec[i][j] < datasetSize))
-            	cout << "ERRORE: "<< i << " " << j<< " "<< grthVec[i][j] << std::endl;
+//    for(int i=0; i<grthVec.size(); i++)
+//        for(int j=0; j<grthVec[0].size(); j++)
+//            if(!(grthVec[i][j] >= 0 && grthVec[i][j] < datasetSize))
+//            	cout << "ERRORE: "<< i << " " << j<< " "<< grthVec[i][j] << std::endl;
 
 
 	//// CPU evaluation
 	Search<float> *s = new CpuSearch<float>(host_dataset);
-	std::chrono::duration<double> diff = evaluate<float>(s, queryVec, grthVec, numResults, true);
-    std::cout << "CPU duration: " << diff.count() << std::endl;
+	//std::chrono::duration<double> cpuTime = evaluate<float>(s, queryVec, grthVec, numResults, true);
+    //std::cout << "CPU duration: " << cpuTime.count() << std::endl;
 	delete s;
 
 	//// GPU evaluation
 	s = new CudaSearch<float>(host_dataset);
-    diff = evaluate<float>(s, queryVec, grthVec, numResults, true);
-    std::cout << "CPU duration: " << diff.count() << std::endl;
+    std::chrono::duration<double> gpuTime = evaluate<float>(s, queryVec, grthVec, numResults, false);
+    std::cout << "GPU duration: " << gpuTime.count() << std::endl;
     delete s;
+
+//    double speedup = cpuTime.count() / gpuTime.count();
+//    std::cout << "Speedup: " << speedup << std::endl;
 
 	return 0;
 }
