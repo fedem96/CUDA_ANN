@@ -6,7 +6,7 @@
 
 using namespace std;
 
-#define DEBUG
+//#define DEBUG
 
 
 template<class T>

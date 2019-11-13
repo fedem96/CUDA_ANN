@@ -1,20 +1,23 @@
-#ifndef CUDA_NANOFLANN_SEARCH_CUH
-#define CUDA_NANOFLANN_SEARCH_CUH
+#ifndef CUDA_SEARCH_CUH
+#define CUDA_SEARCH_CUH
 
 #include <cuda.h>
+#include <iostream>
+#include <vector>
 #include <thrust/sort.h>
 #include "search.hpp"
 #define BLOCK_SIZE 1024
 
 //#define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }
-static void CheckCudaErrorAux (const char *, unsigned, const char *, cudaError_t);
+//static void CheckCudaErrorAux (const char *, unsigned, const char *, cudaError_t);
 
 template <typename T>
 class CudaSearch : public Search<T> {
 public:
     CudaSearch(const std::vector< std::vector<T> > &dataset);
-    void search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults) override;
+    int getSpaceDim() override;
+    void search(T* host_query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t &numResults) override;
     virtual ~CudaSearch();
 private:
     T* dataset;
@@ -22,20 +25,8 @@ private:
     size_t* nnIndexes;
     T* nnDistancesSqr;
     size_t datasetSize;
+    int spaceDim;
 };
-
-
-/**
- * Check the return value of the CUDA runtime API call and exit
- * the application if the call has failed.
- */
-static void CheckCudaErrorAux (const char *file, unsigned line, const char *statement, cudaError_t err)
-{
-    if (err == cudaSuccess)
-        return;
-    std::cerr << statement<<" returned " << cudaGetErrorString(err) << "("<<err<< ") at "<<file<<":"<<line << std::endl;
-    exit (1);
-}
 
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
@@ -46,17 +37,23 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
     }
 }
 
+template<typename T>
+int CudaSearch<T>::getSpaceDim() {
+    return spaceDim;
+}
+
 template <typename T>
 CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datasetSize(dataset.size()){
 
     assert(datasetSize > 0);
+    this->spaceDim = dataset[0].size();
 
     // memory allocation on device
     CUDA_CHECK_RETURN(
-            cudaMalloc((void ** )&this->dataset, sizeof(T) * datasetSize * dataset[0].size())
+            cudaMalloc((void ** )&this->dataset, sizeof(T) * datasetSize * spaceDim)
     );
     CUDA_CHECK_RETURN(
-            cudaMalloc((void ** )&this->query, sizeof(T) * dataset[0].size())
+            cudaMalloc((void ** )&this->query, sizeof(T) * spaceDim)
     );
     CUDA_CHECK_RETURN(
             cudaMalloc((void ** )&this->nnIndexes, sizeof(size_t) * datasetSize)
@@ -75,7 +72,9 @@ CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datase
 }
 
 template <typename T>
-__global__ void _cudaSearch(const T* __restrict__ dataset, const T* __restrict__ query, size_t* __restrict__ nnIndexes, T* __restrict__ nnDistancesSqr, const size_t datasetSize, const int spaceDim){
+__global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restrict__ query,
+                               size_t *__restrict__ nnIndexes, T *__restrict__ nnDistancesSqr, const size_t datasetSize,
+                               const int spaceDim){//, std::vector<int> v){
     size_t i;
     i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
     if(i >= datasetSize)
@@ -114,17 +113,16 @@ __global__ void _cudaSearch(const T* __restrict__ dataset, const T* __restrict__
     nnIndexes[i] = i;
 }
 
-template <typename T>
+template<typename T>
 void CudaSearch<T>::
-search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults){
-
+search(T* host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults){
 
     CUDA_CHECK_RETURN(
-            cudaMemcpy(this->query, &host_query[0], sizeof(T) * host_query.size(), cudaMemcpyHostToDevice)
+            cudaMemcpy(this->query, host_query, sizeof(T) * spaceDim, cudaMemcpyHostToDevice)
     );
 
     int numBlocks = static_cast<int>((datasetSize+BLOCK_SIZE-1) / BLOCK_SIZE);
-    _cudaSearch<<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, host_query.size());
+    _cudaDistances <<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, spaceDim);//, v);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
     thrust::device_ptr<T> device_thrustDistances(this->nnDistancesSqr);
@@ -142,6 +140,7 @@ search(const std::vector<T> &host_query, std::vector<size_t> &host_nnIndexes, st
     );
 }
 
+
 template <typename T>
 CudaSearch<T>::~CudaSearch() {
     // free device memory
@@ -151,4 +150,4 @@ CudaSearch<T>::~CudaSearch() {
     cudaFree(this->query);
 }
 
-#endif //CUDA_NANOFLANN_SEARCH_CUH
+#endif //CUDA_SEARCH_CUH
