@@ -8,26 +8,10 @@
 #include "search.hpp"
 #define BLOCK_SIZE 1024
 
-//#define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }
-//static void CheckCudaErrorAux (const char *, unsigned, const char *, cudaError_t);
-
-template <typename T>
-class CudaSearch : public Search<T> {
-public:
-    CudaSearch(const std::vector< std::vector<T> > &dataset);
-    int getSpaceDim() override;
-    void search(T* host_query, std::vector<size_t> &nnIndexes, std::vector<T> &nnDistancesSqr, const size_t &numResults) override;
-    virtual ~CudaSearch();
-private:
-    T* dataset;
-    T* query;
-    size_t* nnIndexes;
-    T* nnDistancesSqr;
-    size_t datasetSize;
-    int spaceDim;
-};
-
+/**
+ * Check for errors in return values of CUDA functions
+ */
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
 {
     if (code != cudaSuccess)
@@ -36,6 +20,23 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
         if (abort) exit(code);
     }
 }
+
+template <typename T>
+class CudaSearch : public Search<T> {
+public:
+    CudaSearch(const std::vector< std::vector<T> > &dataset);
+    int getSpaceDim() override;
+    void search(T* host_query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults) override;
+    virtual ~CudaSearch();
+private:
+    T* dataset;
+    T* query;
+    int* nnIndexes;
+    T* nnDistancesSqr;
+    int datasetSize;
+    int spaceDim;
+};
+
 
 template<typename T>
 int CudaSearch<T>::getSpaceDim() {
@@ -53,19 +54,20 @@ CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datase
             cudaMalloc((void ** )&this->dataset, sizeof(T) * datasetSize * spaceDim)
     );
     CUDA_CHECK_RETURN(
+            // TODO se si permette le query a batch, questo va cambiato
             cudaMalloc((void ** )&this->query, sizeof(T) * spaceDim)
     );
     CUDA_CHECK_RETURN(
-            cudaMalloc((void ** )&this->nnIndexes, sizeof(size_t) * datasetSize)
+            cudaMalloc((void ** )&this->nnIndexes, sizeof(int) * datasetSize)
     );
     CUDA_CHECK_RETURN(
             cudaMalloc((void ** )&this->nnDistancesSqr, sizeof(T) * datasetSize)
     );
 
     // dataset copy to device
-    for(size_t i=0; i < datasetSize; i++){
+    for(int i=0; i < datasetSize; i++){
         CUDA_CHECK_RETURN(
-                cudaMemcpy(&this->dataset[i*dataset[0].size()], &dataset[i][0], sizeof(T) * dataset[0].size(), cudaMemcpyHostToDevice)
+                cudaMemcpy(this->dataset + (i*spaceDim), &dataset[i][0], sizeof(T) * spaceDim, cudaMemcpyHostToDevice)
         );
     }
 
@@ -73,9 +75,9 @@ CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datase
 
 template <typename T>
 __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restrict__ query,
-                               size_t *__restrict__ nnIndexes, T *__restrict__ nnDistancesSqr, const size_t datasetSize,
+                               int *__restrict__ nnIndexes, T *__restrict__ nnDistancesSqr, const int datasetSize,
                                const int spaceDim){//, std::vector<int> v){
-    size_t i;
+    int i;
     i = blockIdx.x * BLOCK_SIZE + threadIdx.x;
     if(i >= datasetSize)
         return;
@@ -85,6 +87,8 @@ __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restric
         const T diff = query[j] - dataset[i*spaceDim + j];
         dist = dist + (diff * diff);
     }
+    // TODO vedere se è possibile modificare questa implementazione per velocizzare il calcolo delle distanze
+
 //  loop unrolling
 //    T* ptrLastQuery = query + spaceDim;
 //    T* ptrLastQueryGroup = ptrLastQuery - 3;
@@ -115,25 +119,32 @@ __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restric
 
 template<typename T>
 void CudaSearch<T>::
-search(T* host_query, std::vector<size_t> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const size_t &numResults){
+search(T* host_query, std::vector<int> &host_nnIndexes, std::vector<T> &host_nnDistancesSqr, const int &numResults){
 
+    // TODO implementare batch search (forse meglio fare un altro metodo)
+
+    // copy query to device memory
     CUDA_CHECK_RETURN(
+            // TODO capire per quale motivo questo trasferimento è più lento se la query si trova nella memoria pinned (forse è troppo piccola, e usando il batch le cose cambiano)
             cudaMemcpy(this->query, host_query, sizeof(T) * spaceDim, cudaMemcpyHostToDevice)
     );
 
+    // calculate distances between query and each dataset point
+    // TODO capire il numero ottimale della dimensione dei blocchi dal file excel di NVIDIA
     int numBlocks = static_cast<int>((datasetSize+BLOCK_SIZE-1) / BLOCK_SIZE);
     _cudaDistances <<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, spaceDim);//, v);
     CUDA_CHECK_RETURN(cudaDeviceSynchronize());
 
+    // sort by increasing distance
     thrust::device_ptr<T> device_thrustDistances(this->nnDistancesSqr);
-    thrust::device_ptr<size_t> device_thrustIndexes(this->nnIndexes);
+    thrust::device_ptr<int> device_thrustIndexes(this->nnIndexes);
     thrust::sort_by_key(device_thrustDistances, device_thrustDistances+this->datasetSize, device_thrustIndexes);
 
-    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize()); // TODO questo serve?
 
-    // copy from device to host memory
+    // copy results from device to host memory
     CUDA_CHECK_RETURN(
-            cudaMemcpy(&host_nnIndexes[0], this->nnIndexes, sizeof(size_t) * numResults, cudaMemcpyDeviceToHost)
+            cudaMemcpy(&host_nnIndexes[0], this->nnIndexes, sizeof(int) * numResults, cudaMemcpyDeviceToHost)
     );
     CUDA_CHECK_RETURN(
             cudaMemcpy(&host_nnDistancesSqr[0], this->nnDistancesSqr, sizeof(T) * numResults, cudaMemcpyDeviceToHost)

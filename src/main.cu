@@ -8,36 +8,55 @@
  ============================================================================
  */
 
-//#include <string>
-//#include <algorithm>
 #include <sstream>
 #include <iterator>
 #include <iostream>
-//#include <numeric>
-//#include <stdlib.h>
 #include <vector>
 #include <chrono>
 
+#ifdef __CUDACC__
 #include <cuda.h>
+#endif
 
 #include "utils.cpp"
 #include "read_sift_dataset.cpp"
 #include "search.hpp"
+#ifdef __CUDACC__
 #include "search.cuh"
+#endif
 
+/** @brief Evaluate a search algorithm.
+  * @param s: search algorithm to evaluate
+  * @param queries: samples to search
+  * @param groundTruth: for each query, ordered vector of indexes that should return the search method
+  * @param numResults: number of queries to make
+  * @param mustCheckCorrectness: if true, assures that results of the search are the same of groundTruth
+  * @return elapsed time to search for all queries
+  *
+  * This method evaluates the time needed to a search algorithm to search for all queries in a dataset.
+  * The search algorithm must be previously initialized on a dataset.
+  */
 template <typename T>
-std::chrono::duration<double> evaluate(Search<T> *s, T* queries, std::vector <std::vector<int>> &grthVec, const int &numQueries, int &numResults, bool mustCheck = false);
+std::chrono::duration<double> evaluate(Search<T> *s, T* queries, std::vector <std::vector<int>> &groundTruth, const int &numQueries, int &numResults, bool mustCheckCorrectness = false);
+// TODO cambiare signature di questa funzione: il groundTruth non è necessario quando non si vuole anche controllare la correttezza dell'algoritmo
 
+/** @brief Check for correcteness
+  * @param groundTruth: for each query, ordered vector of indexes that should return the search method
+  * @param nnAllIndexes: for each query, vector of indexes returned by the search method
+  * @param nnAllDistancesSqr: for each query, squared euclidean distance between the query point and every its neighbor
+  * @return true if given indexes and distances are coherent to the groundTruth
+  *
+  * This method evaluates if the results of the search algorithm are coherent to the groundTruth.
+  */
 template <typename T>
-std::chrono::duration<double> oldEvaluate(Search<T> *s, std::vector <std::vector<T>> &queryVec,
-                                          std::vector <std::vector<int>> &grthVec, int &numResults,
-                                          bool mustCheck = false);
+bool checkCorrectness(std::vector< std::vector<int> > &groundTruth, std::vector<std::vector<int> > &nnAllIndexes, std::vector<std::vector<T> > &nnAllDistancesSqr);
 
-template <typename T>
-void check(std::vector< std::vector<int> > &grthVec, std::vector<std::vector<size_t> > &nnAllIndexes, std::vector<std::vector<T> > &nnAllDistancesSqr);
-
+/** Execute the experiments
+  */
 int main(int argc, char **argv)
 {
+    // TODO prendere i parametri per gli esperimenti da riga di comando
+
     /* files path definition */
     // 10^6 examples dataset:
 //	std::string baseFileName = "../data/sift/sift_base.fvecs";
@@ -64,12 +83,12 @@ int main(int argc, char **argv)
     std::cout << "\nReading groundtruth for queries" << std::endl;
 	assert((readVecsFile<int,int>(groundtruthFileName, host_grTruth_vv, false)));
 
-	// dataset slice (to do quick tests)
+	// dataset slice (to do quick tests) TODO rimuovere nella versione finale
     //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + 10000);
     //host_dataset_vv.resize(10000);
 
     /* constants initialization */
-	const size_t datasetSize = host_dataset_vv.size();
+	const int datasetSize = host_dataset_vv.size();
 	const int spaceDim = host_dataset_vv[0].size();     // 128
 	const int numQueries = host_queries_vv.size();
     assert(host_queries_vv.size() == host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
@@ -85,49 +104,55 @@ int main(int argc, char **argv)
 
     /* data conversion */
     // convert queries from vector of vectors into raw pointer
-    // TODO capire perché con la pinned va più lento mentre invece dovrebbe essere più veloce
+    // TODO capire perché con la pinned va più lento mentre invece dovrebbe essere più veloce (forse perché il dato trasferito è piccolo, ogni query è 512 byte)
     float* host_queries_ptr;
 //    CUDA_CHECK_RETURN(
 //            cudaMallocHost((void ** )&host_queries_ptr, sizeof(float) * numQueries * spaceDim)     // allocate pinned memory on host RAM: it allows the use of DMA, speeding up cudaMemcpy
 //    );
     host_queries_ptr = new float[numQueries * spaceDim]; // non-pinned memory
-    for(size_t i=0; i < numQueries; i++){
+    for(int i=0; i < numQueries; i++){
+        // move i-th query from vector of vectors to raw pointer
         std::memcpy(host_queries_ptr + (i*spaceDim), &host_queries_vv[i][0], sizeof(float) * spaceDim);
     }
 
-    /* evaluation */
+    /* evaluation: for each implementation, execute search and measure elapsed time */
     Search<float> *s;
 
 	//// CPU evaluation
-	s = new CpuSearch<float>(host_dataset_ptr, datasetSize, spaceDim);
-	std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, false);
+    auto start = std::chrono::high_resolution_clock::now();
+	s = new CpuSearch<float>(host_dataset_vv);
+    std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
+	std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+    std::cout << "CPU init time: " << cpuInitTime.count() << std::endl;
     std::cout << "CPU eval time: " << cpuEvalTime.count() << std::endl;
 	delete s;
 
-	//// GPU evaluation
-    auto start = std::chrono::high_resolution_clock::now();
+    //// GPU evaluation
+#ifdef __CUDACC__
+    start = std::chrono::high_resolution_clock::now();
 	s = new CudaSearch<float>(host_dataset_vv);
     std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
     std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, false);
     std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
     std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
     delete s;
+#endif
 
-//    double speedup = cpuEvalTime.count() / gpuEvalTime.count();
-//    std::cout << "Speedup: " << speedup << std::endl;
+    // TODO dentro (o dopo) ogni search, salvare risultati su file csv
 
-    //delete [] host_dataset_ptr;
+    delete [] host_queries_ptr;
 
 	return 0;
 }
 
 template <typename T>
-std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector <std::vector<int>> &grthVec, const int &numQueries, int &numResults, bool mustCheck){
+std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector <std::vector<int>> &groundTruth, const int &numQueries, int &numResults, bool mustCheckCorrectness){
 
     /* data structures for query */
-    std::vector<std::vector<size_t> > nnAllIndexes(numQueries, std::vector<size_t>(numResults));    // numQueries x numResults
+    std::vector<std::vector<int> > nnAllIndexes(numQueries, std::vector<int>(numResults));    // numQueries x numResults
     std::vector<std::vector<T> > nnAllDistancesSqr(numQueries, std::vector<float>(numResults));     // numQueries x numResults
 
+    // measure time of execution of all queries
     auto start = std::chrono::high_resolution_clock::now();
     int sd = s->getSpaceDim();
     for(int i = 0; i < numQueries; i++){
@@ -135,20 +160,22 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
         //std::cout << vecToStr(nnAllDistancesSqr[i]) << std::endl;
     }
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> diff = end-start;
+    std::chrono::duration<double> elapsedTime = end-start;
 
+    // eventually check for correctness
+    if(mustCheckCorrectness)
+        checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr);
 
-    if(mustCheck)
-        check(grthVec, nnAllIndexes, nnAllDistancesSqr);
-
-    return diff;
+    return elapsedTime;
 }
 
 template <typename T>
-void check(std::vector< std::vector<int> > &grthVec, std::vector<std::vector<size_t> > &nnAllIndexes, std::vector<std::vector<T> > &nnAllDistancesSqr){
+bool checkCorrectness(std::vector< std::vector<int> > &groundTruth, std::vector<std::vector<int> > &nnAllIndexes, std::vector<std::vector<T> > &nnAllDistancesSqr){
     for(int i = 0; i < nnAllIndexes.size(); i++){
-        //std::cout << "\nelement " << i << " of vector groundtruth (" << grthVec[i].size() << " elements):\n\t" << vecToStr<int>(grthVec[i]) << std::endl;
-        //std::cout << "\nelement " << i << " of vector nnAllIndexes (" << nnAllIndexes[i].size() << " elements):\n\t" << vecToStr<size_t>(nnAllIndexes[i]) << std::endl;
-        checkKNN<float>(grthVec[i], nnAllIndexes[i], nnAllDistancesSqr[i]);
+        //std::cout << "\nelement " << i << " of vector groundtruth (" << groundTruth[i].size() << " elements):\n\t" << vecToStr<int>(groundTruth[i]) << std::endl;
+        //std::cout << "\nelement " << i << " of vector nnAllIndexes (" << nnAllIndexes[i].size() << " elements):\n\t" << vecToStr<int>(nnAllIndexes[i]) << std::endl;
+        if(!checkKNN<float>(groundTruth[i], nnAllIndexes[i], nnAllDistancesSqr[i]))
+            return false;
     }
+    return true;
 }
