@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <iterator>
 #include <cstring>
+#include <thrust/sort.h>
 
 template <typename T>
 class Search{
@@ -31,7 +32,7 @@ private:
 };
 
 // TODO modificare costruttore: permettere di scegliere se si vuole la versione sequenziale oppure OpenMP (nel secondo caso, permettere di scegliere il numero di thread)
-
+// io metterei semplicemente un booleano tra i parametri che a seconda t/f esegua le direttive OpenMP o no e l'eventuale numero di thread passato per parametro e messo a default 1
 template<typename T>
 CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false) {}
 
@@ -48,9 +49,19 @@ CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv) : datas
 }
 
 template<typename T>
-void CpuSearch<T>::
-search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
+void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO implementare la ricerca, versione cpu sequenziale / OpenMP
+    for(int i=0; i < datasetSize ; i++) {
+        T dist = 0;
+        for (int j = 0; j < spaceDim; j++) {
+            const T diff = query[j] - dataset[i * spaceDim + j];
+            dist = dist + (diff * diff);
+        }
+
+        nnDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
+        nnIndexes[i] = i;
+    }
+    thrust::sort_by_key(&nnDistancesSqr[0], &nnDistancesSqr[0]+this->datasetSize, &nnIndexes[0]);
 }
 
 template<typename T>
