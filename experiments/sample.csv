@@ -1,0 +1,25 @@
+alg_version;num_threads;dataset_size;time;name
+seq;0;1000;1;Intel Core i7-9750H
+seq;0;10000;3;Intel Core i7-9750H
+seq;0;100000;35;Intel Core i7-9750H
+seq;0;1000000;490;Intel Core i7-9750H
+gpu;0;1000;3;NVIDIA GTX 1050 Ti
+gpu;0;10000;4.2;NVIDIA GTX 1050 Ti
+gpu;0;100000;5.6;NVIDIA GTX 1050 Ti
+gpu;0;1000000;15;NVIDIA GTX 1050 Ti
+omp;0;1000;0.1;Intel Core i7-9750H
+omp;0;10000;1;Intel Core i7-9750H
+omp;0;100000;10;Intel Core i7-9750H
+omp;0;1000000;100;Intel Core i7-9750H
+omp;1;1000000;1000;Intel Core i7-9750H
+omp;2;1000000;550;Intel Core i7-9750H
+omp;3;1000000;370;Intel Core i7-9750H
+omp;4;1000000;282;Intel Core i7-9750H
+omp;5;1000000;210;Intel Core i7-9750H
+omp;6;1000000;190;Intel Core i7-9750H
+omp;7;1000000;167;Intel Core i7-9750H
+omp;8;1000000;150;Intel Core i7-9750H
+omp;9;1000000;142;Intel Core i7-9750H
+omp;10;1000000;121;Intel Core i7-9750H
+omp;11;1000000;110;Intel Core i7-9750H
+omp;12;1000000;100;Intel Core i7-9750H
