@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 include_directories(src)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp") # OpenMP e cpu thrust
+
 find_package(CUDA)
 if(CUDA_FOUND)
     # using CUDA
