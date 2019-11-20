@@ -51,6 +51,10 @@ CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv) : datas
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO implementare la ricerca, versione cpu sequenziale / OpenMP
+
+    std::vector<int> nnAllIndexes(datasetSize); // resize dei vetteri per ordinamento ALL
+    std::vector<T> nnAllDistancesSqr(datasetSize);
+
     for(int i=0; i < datasetSize ; i++) {
         T dist = 0;
         for (int j = 0; j < spaceDim; j++) {
@@ -58,10 +62,22 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
             dist = dist + (diff * diff);
         }
 
-        nnDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
-        nnIndexes[i] = i;
+        nnAllDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
+        nnAllDistancesSqr[i] = i;
     }
-    thrust::sort_by_key(&nnDistancesSqr[0], &nnDistancesSqr[0]+this->datasetSize, &nnIndexes[0]);
+
+    // ordinamento di tutto costoso come fare meglio?
+    thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    // copia dei primi 100 elementi
+    for (int i=0; i<numResults; i++) {
+
+        std::memcpy(nnDistancesSqr + (i*spaceDim), &nnAllDistancesSqr[i][0], sizeof(T)  * numResults);
+
+        std::memcpy(nnIndexes + (i*spaceDim), &nnAllIndexes[i], sizeof(int) * numResults);
+
+    }
+
+
 }
 
 template<typename T>
