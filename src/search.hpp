@@ -19,8 +19,8 @@ public:
 template <typename T>
 class CpuSearch : public Search<T> {
 public:
-    CpuSearch(T* dataset, int rows, int cols);
-    CpuSearch(const std::vector< std::vector<T> > &dataset);
+    CpuSearch(T* dataset, int rows, int cols, int numCores=0);
+    CpuSearch(const std::vector< std::vector<T> > &dataset, int numCores=0);
     void search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults) override;
     int getSpaceDim() override;
     virtual ~CpuSearch();
@@ -29,15 +29,16 @@ private:
     int datasetSize;
     int spaceDim;
     bool datasetAllocated;
+    int numCores;
 };
 
 // TODO modificare costruttore: permettere di scegliere se si vuole la versione sequenziale oppure OpenMP (nel secondo caso, permettere di scegliere il numero di thread)
 // io metterei semplicemente un booleano tra i parametri che a seconda t/f esegua le direttive OpenMP o no e l'eventuale numero di thread passato per parametro e messo a default 1
 template<typename T>
-CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false) {}
+CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores) {}
 
 template<typename T>
-CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv) : datasetSize(dataset_vv.size())
+CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size(), numCores(numCores))
 {
     assert(datasetSize > 0);
     spaceDim = dataset_vv[0].size();
