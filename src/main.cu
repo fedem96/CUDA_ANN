@@ -124,9 +124,14 @@ int main(int argc, char **argv) {
     /* evaluation: for each implementation, execute search and measure elapsed time */
     Search<float> *s;
 
+    auto start = std::chrono::high_resolution_clock::now();
     //// CPU evaluation
-    for(int numCores = 1; numCores <=  omp_get_max_threads()  ; numCores++){  // openmp directive for the number of cores
-        auto start = std::chrono::high_resolution_clock::now();
+    int max_threads = 1;
+    #ifdef _OPENMP
+        max_threads = omp_get_max_threads();
+    #endif
+    for(int numCores = 1; numCores <=  max_threads; numCores++){  // openmp directive for the number of cores
+        start = std::chrono::high_resolution_clock::now();
         s = new CpuSearch<float>(host_dataset_vv, numCores);
         std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
         std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries,
