@@ -59,13 +59,13 @@ int main(int argc, char **argv)
 
     /* files path definition */
     // 10^6 examples dataset:
-//	std::string baseFileName = "../data/sift/sift_base.fvecs";
-//	std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
-//	std::string queryFileName = "../data/sift/sift_query.fvecs";
+	std::string baseFileName = "../data/sift/sift_base.fvecs";
+	std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
+	std::string queryFileName = "../data/sift/sift_query.fvecs";
 	// 10^4 examples dataset:
-	std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
-	std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
-	std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
+//	std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
+//	std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
+//	std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
 
 	/* evaluation parameters */
     int numResults = 100;
@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     start = std::chrono::high_resolution_clock::now();
 	s = new CudaSearch<float>(host_dataset_vv);
     std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, false);
+    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
     std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
     std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
     delete s;
@@ -164,6 +164,7 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
 
     // eventually check for correctness
     if(mustCheckCorrectness)
+        //assert(checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr));
         checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr);
 
     return elapsedTime;

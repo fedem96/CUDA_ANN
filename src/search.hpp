@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <vector>
+#include <stdlib.h>
 #include <algorithm>
 #include <iterator>
 #include <cstring>
@@ -50,6 +51,12 @@ CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int num
 }
 
 template<typename T>
+T compare (const void * a, const void * b)
+{
+    return ( *(T*)a - *(T*)b );
+}
+
+template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO implementare la ricerca, versione cpu sequenziale / OpenMP
 
@@ -64,19 +71,19 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
         }
 
         nnAllDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
-        nnAllDistancesSqr[i] = i;
+        nnAllIndexes[i] = i;
     }
 
     // ordinamento di tutto costoso come fare meglio?
-    thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    trust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    // TODO usare std::sort o qsort che sono più veloci. Però c'è da fare in modo che venga ordinato anche il vettore degli indici
+    //std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
+    //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
+
     // copia dei primi 100 elementi
-    for (int i=0; i<numResults; i++) {
+    std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);
+    std::memcpy(&nnIndexes[0], &nnAllIndexes[0], sizeof(int) * numResults);
 
-        std::memcpy(nnDistancesSqr + (i*spaceDim), &nnAllDistancesSqr[i][0], sizeof(T)  * numResults);
-
-        std::memcpy(nnIndexes + (i*spaceDim), &nnAllIndexes[i], sizeof(int) * numResults);
-
-    }
 
 
 }
