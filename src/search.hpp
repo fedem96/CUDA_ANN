@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <cstring>
-#include <thrust/sort.h>
+//#include <thrust/sort.h>
 
 template <typename T>
 class Search{
@@ -64,18 +64,21 @@ T compare (const void * a, const void * b)
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO finire di implementare la ricerca, versione cpu sequenziale / OpenMP
-
-    T dist, diff;
-    T* k = dataset;
+    int tid;
+    omp_set_num_threads(numCores);
+#pragma omp parallel for //private(numCores)
+    //#pragma for schedule(auto)
+    //#pragma for schedule(dynamic)
     for(int i=0; i < datasetSize ; i++) {
-        dist = 0;
+        T dist = 0;
+    //#pragma omp critical
         for (int j = 0; j < spaceDim; j++) {
-            // TODO provare loop unrolling
-            diff = query[j] - *k;
+            const T diff = query[j] - dataset[i * spaceDim + j];
             dist = dist + (diff * diff);
-            k++;
         }
 
+        tid = omp_get_thread_num();
+        // printf(" thread id = %d - i = %d \n", tid , i);
         // dist is the square of the distance: for efficiency I use it instead of distance to find neighbors
         nnAllDistancesSqr[i] = dist;
         nnAllIndexes[i] = i;
@@ -83,7 +86,7 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
 
     // sorting whit thrust is expensive why?
     // sort by increasing distance
-    thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    //thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
     // TODO usare std::sort o qsort che sono più veloci. Però c'è da fare in modo che venga ordinato anche il vettore degli indici
     //std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
     //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
