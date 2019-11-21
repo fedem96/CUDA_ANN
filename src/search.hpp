@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <cstring>
-// #include <thrust/sort.h>
+#include <thrust/sort.h>
 
 template <typename T>
 class Search{
@@ -31,14 +31,20 @@ private:
     int spaceDim;
     bool datasetAllocated;
     int numCores;
+
+    std::vector<int> nnAllIndexes;
+    std::vector<T> nnAllDistancesSqr;
+
 };
 
 // TODO modificare costruttore: permettere di scegliere se si vuole la versione sequenziale oppure OpenMP (nel secondo caso, permettere di scegliere il numero di thread)
 template<typename T>
-CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores) {}
+CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores), nnAllIndexes(datasetSize), nnAllDistancesSqr(datasetSize) {
+    assert(datasetSize > 0);
+}
 
 template<typename T>
-CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores)
+CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores), nnAllIndexes(dataset_vv.size()), nnAllDistancesSqr(dataset_vv.size())
 {
     assert(datasetSize > 0);
     spaceDim = dataset_vv[0].size();
@@ -57,33 +63,34 @@ T compare (const void * a, const void * b)
 
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
-    // TODO implementare la ricerca, versione cpu sequenziale / OpenMP
+    // TODO finire di implementare la ricerca, versione cpu sequenziale / OpenMP
 
-    std::vector<int> nnAllIndexes(datasetSize); // resize dei vetteri per ordinamento ALL
-    std::vector<T> nnAllDistancesSqr(datasetSize);
-
+    T dist, diff;
+    T* k = dataset;
     for(int i=0; i < datasetSize ; i++) {
-        T dist = 0;
+        dist = 0;
         for (int j = 0; j < spaceDim; j++) {
-            const T diff = query[j] - dataset[i * spaceDim + j];
+            // TODO provare loop unrolling
+            diff = query[j] - *k;
             dist = dist + (diff * diff);
+            k++;
         }
-        nnAllDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
+
+        // dist is the square of the distance: for efficiency I use it instead of distance to find neighbors
+        nnAllDistancesSqr[i] = dist;
         nnAllIndexes[i] = i;
     }
 
     // sorting whit thrust is expensive why?
-    // thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    // sort by increasing distance
+    thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
     // TODO usare std::sort o qsort che sono più veloci. Però c'è da fare in modo che venga ordinato anche il vettore degli indici
-    // std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
-    qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
+    //std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
+    //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
 
-    // copia dei primi 100 elementi
+    // copy distances and indexes of nearest neighbors
     std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);
     std::memcpy(&nnIndexes[0], &nnAllIndexes[0], sizeof(int) * numResults);
-
-
-
 }
 
 template<typename T>
