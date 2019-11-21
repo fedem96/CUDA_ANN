@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <iterator>
 #include <cstring>
-#include <thrust/sort.h>
+// #include <thrust/sort.h>
 
 template <typename T>
 class Search{
@@ -34,12 +34,11 @@ private:
 };
 
 // TODO modificare costruttore: permettere di scegliere se si vuole la versione sequenziale oppure OpenMP (nel secondo caso, permettere di scegliere il numero di thread)
-// io metterei semplicemente un booleano tra i parametri che a seconda t/f esegua le direttive OpenMP o no e l'eventuale numero di thread passato per parametro e messo a default 1
 template<typename T>
 CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores) {}
 
 template<typename T>
-CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size(), numCores(numCores))
+CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores)
 {
     assert(datasetSize > 0);
     spaceDim = dataset_vv[0].size();
@@ -69,16 +68,15 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
             const T diff = query[j] - dataset[i * spaceDim + j];
             dist = dist + (diff * diff);
         }
-
         nnAllDistancesSqr[i] = dist; // sarebbe sotto radice ma è uguale
         nnAllIndexes[i] = i;
     }
 
-    // ordinamento di tutto costoso come fare meglio?
-    trust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
+    // sorting whit thrust is expensive why?
+    // thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
     // TODO usare std::sort o qsort che sono più veloci. Però c'è da fare in modo che venga ordinato anche il vettore degli indici
-    //std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
-    //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
+    // std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
+    qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
 
     // copia dei primi 100 elementi
     std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);

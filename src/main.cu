@@ -13,6 +13,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <omp.h>
 
 #ifdef __CUDACC__
 #include <cuda.h>
@@ -24,6 +25,8 @@
 #ifdef __CUDACC__
 #include "search.cuh"
 #endif
+
+
 
 /** @brief Evaluate a search algorithm.
   * @param s: search algorithm to evaluate
@@ -53,45 +56,48 @@ bool checkCorrectness(std::vector< std::vector<int> > &groundTruth, std::vector<
 
 /** Execute the experiments
   */
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
+    #ifdef _OPENMP
+        std::cout << "_OPENMP defined" << std::endl;
+    #endif
     // TODO prendere i parametri per gli esperimenti da riga di comando
 
     /* files path definition */
     // 10^6 examples dataset:
-	std::string baseFileName = "../data/sift/sift_base.fvecs";
-	std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
-	std::string queryFileName = "../data/sift/sift_query.fvecs";
-	// 10^4 examples dataset:
-//	std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
-//	std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
-//	std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
+    //std::string baseFileName = "../data/sift/sift_base.fvecs";
+    //std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
+    //std::string queryFileName = "../data/sift/sift_query.fvecs";
+    // 10^4 examples dataset:
+    std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
+    std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
+    std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
 
-	/* evaluation parameters */
+    /* evaluation parameters */
     int numResults = 100;
 
-	/* data structures for dataset */
-	std::vector< std::vector<float> > host_dataset_vv;      // datasetSize x spaceDim       <- dataset where to find nearest neighbors
-    std::vector< std::vector<float> > host_queries_vv;      // numQueries  x spaceDim       <- test samples
-	std::vector< std::vector<int> > host_grTruth_vv;        // numQueries  x 100            <- first 100 nearest neighbors for each test sample
+    /* data structures for dataset */
+    std::vector<std::vector<float> > host_dataset_vv;      // datasetSize x spaceDim       <- dataset where to find nearest neighbors
+    std::vector<std::vector<float> > host_queries_vv;      // numQueries  x spaceDim       <- test samples
+    std::vector<std::vector<int> > host_grTruth_vv;        // numQueries  x 100            <- first 100 nearest neighbors for each test sample
 
-	/* reading of dataset, queries and groundtruth */
-	std::cout << "Reading dataset" << std::endl;
-	assert((readVecsFile<float,float>(baseFileName, host_dataset_vv, false)));
+    /* reading of dataset, queries and groundtruth */
+    std::cout << "Reading dataset" << std::endl;
+    assert((readVecsFile<float, float>(baseFileName, host_dataset_vv, false)));
     std::cout << "\nReading queries" << std::endl;
-    assert((readVecsFile<float,float>(queryFileName, host_queries_vv, false)));
+    assert((readVecsFile<float, float>(queryFileName, host_queries_vv, false)));
     std::cout << "\nReading groundtruth for queries" << std::endl;
-	assert((readVecsFile<int,int>(groundtruthFileName, host_grTruth_vv, false)));
+    assert((readVecsFile<int, int>(groundtruthFileName, host_grTruth_vv, false)));
 
-	// dataset slice (to do quick tests) TODO rimuovere nella versione finale
+    // dataset slice (to do quick tests) TODO rimuovere nella versione finale
     //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + 10000);
     //host_dataset_vv.resize(10000);
 
     /* constants initialization */
-	const int datasetSize = host_dataset_vv.size();
-	const int spaceDim = host_dataset_vv[0].size();     // 128
-	const int numQueries = host_queries_vv.size();
-    assert(host_queries_vv.size() == host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
+    const int datasetSize = host_dataset_vv.size();
+    const int spaceDim = host_dataset_vv[0].size();     // 128
+    const int numQueries = host_queries_vv.size();
+    assert(host_queries_vv.size() ==
+           host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
     assert(numResults <= host_grTruth_vv[0].size());            // assert(numResults <= 100)
 
     /* some print to understand data */
@@ -105,28 +111,30 @@ int main(int argc, char **argv)
     /* data conversion */
     // convert queries from vector of vectors into raw pointer
     // TODO capire perché con la pinned va più lento mentre invece dovrebbe essere più veloce (forse perché il dato trasferito è piccolo, ogni query è 512 byte)
-    float* host_queries_ptr;
+    float *host_queries_ptr;
 //    CUDA_CHECK_RETURN(
 //            cudaMallocHost((void ** )&host_queries_ptr, sizeof(float) * numQueries * spaceDim)     // allocate pinned memory on host RAM: it allows the use of DMA, speeding up cudaMemcpy
 //    );
     host_queries_ptr = new float[numQueries * spaceDim]; // non-pinned memory
-    for(int i=0; i < numQueries; i++){
+    for (int i = 0; i < numQueries; i++) {
         // move i-th query from vector of vectors to raw pointer
-        std::memcpy(host_queries_ptr + (i*spaceDim), &host_queries_vv[i][0], sizeof(float) * spaceDim);
+        std::memcpy(host_queries_ptr + (i * spaceDim), &host_queries_vv[i][0], sizeof(float) * spaceDim);
     }
 
     /* evaluation: for each implementation, execute search and measure elapsed time */
     Search<float> *s;
 
-	//// CPU evaluation
-    auto start = std::chrono::high_resolution_clock::now();
-	s = new CpuSearch<float>(host_dataset_vv);
-    std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
-	std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
-    std::cout << "CPU init time: " << cpuInitTime.count() << std::endl;
-    std::cout << "CPU eval time: " << cpuEvalTime.count() << std::endl;
-	delete s;
-
+    //// CPU evaluation
+    for(int numCores = 1; numCores <=  omp_get_max_threads()  ; numCores++){  // openmp directive for the number of cores
+        auto start = std::chrono::high_resolution_clock::now();
+        s = new CpuSearch<float>(host_dataset_vv, numCores);
+        std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
+        std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries,
+                                                                    numResults, true);
+        std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
+        std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
+        delete s;
+    }
     //// GPU evaluation
 #ifdef __CUDACC__
     start = std::chrono::high_resolution_clock::now();
@@ -153,6 +161,7 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
     std::vector<std::vector<T> > nnAllDistancesSqr(numQueries, std::vector<float>(numResults));     // numQueries x numResults
 
     // measure time of execution of all queries
+
     auto start = std::chrono::high_resolution_clock::now();
     int sd = s->getSpaceDim();
     for(int i = 0; i < numQueries; i++){
