@@ -64,9 +64,9 @@ int main(int argc, char **argv) {
 
     /* files path definition */
     // 10^6 examples dataset:
-    //std::string baseFileName = "../data/sift/sift_base.fvecs";
-    //std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
-    //std::string queryFileName = "../data/sift/sift_query.fvecs";
+//    std::string baseFileName = "../data/sift/sift_base.fvecs";
+//    std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
+//    std::string queryFileName = "../data/sift/sift_query.fvecs";
     // 10^4 examples dataset:
     std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
     std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
@@ -89,8 +89,9 @@ int main(int argc, char **argv) {
     assert((readVecsFile<int, int>(groundtruthFileName, host_grTruth_vv, false)));
 
     // dataset slice (to do quick tests) TODO rimuovere nella versione finale
-    //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + 10000);
-    //host_dataset_vv.resize(10000);
+//    const int numExamples = 30000;
+//    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
+//    host_dataset_vv.resize(numExamples);
 
     /* constants initialization */
     const int datasetSize = host_dataset_vv.size();
@@ -125,8 +126,11 @@ int main(int argc, char **argv) {
     Search<float> *s;
     auto start = std::chrono::high_resolution_clock::now();
     //// CPU evaluation
-    int mt = omp_get_max_threads();
-    for(int numCores = 1; numCores <= mt; numCores++){  // openmp directive for the number of cores
+    int maxThreads = 1;
+#ifdef _OPENMP
+    maxThreads = maxThreads = omp_get_max_threads();
+#endif
+    for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
         start = std::chrono::high_resolution_clock::now();
         s = new CpuSearch<float>(host_dataset_vv, numCores);
         std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
