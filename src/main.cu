@@ -64,13 +64,13 @@ int main(int argc, char **argv) {
 
     /* files path definition */
     // 10^6 examples dataset:
-    //std::string baseFileName = "../data/sift/sift_base.fvecs";
-    //std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
-    //std::string queryFileName = "../data/sift/sift_query.fvecs";
+    std::string baseFileName = "../data/sift/sift_base.fvecs";
+    std::string groundtruthFileName = "../data/sift/sift_groundtruth.ivecs";
+    std::string queryFileName = "../data/sift/sift_query.fvecs";
     // 10^4 examples dataset:
-    std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
-    std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
-    std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
+//    std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
+//    std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
+//    std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
 
     /* evaluation parameters */
     int numResults = 100;
@@ -89,8 +89,9 @@ int main(int argc, char **argv) {
     assert((readVecsFile<int, int>(groundtruthFileName, host_grTruth_vv, false)));
 
     // dataset slice (to do quick tests) TODO rimuovere nella versione finale
-    //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + 10000);
-    //host_dataset_vv.resize(10000);
+    int slice = 30000;
+    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + slice);
+    host_dataset_vv.resize(slice);
 
     /* constants initialization */
     const int datasetSize = host_dataset_vv.size();
