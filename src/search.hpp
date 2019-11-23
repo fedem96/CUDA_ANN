@@ -9,6 +9,18 @@
 #include <cstring>
 //#include <thrust/sort.h>
 
+
+template<typename T>
+struct Neighbor {
+    T distance;
+    int index;
+    bool operator>(const Neighbor& rhs) { return distance > rhs.distance; }
+    bool operator>=(const Neighbor& rhs) { return distance >= rhs.distance; }
+    bool operator<(const Neighbor& rhs) { return distance < rhs.distance; }
+    bool operator<=(const Neighbor& rhs) { return distance <= rhs.distance; }
+    bool operator==(const Neighbor& rhs) { return distance == rhs.distance; }
+};
+
 template <typename T>
 class Search{
 public:
@@ -34,6 +46,7 @@ private:
 
     std::vector<int> nnAllIndexes;
     std::vector<T> nnAllDistancesSqr;
+    std::vector<Neighbor<T> > nearestNeighbors;
 
 };
 
@@ -61,6 +74,17 @@ T compare (const void * a, const void * b)
     return ( *(T*)a - *(T*)b );
 }
 
+
+//template<typename T>
+//int comparator(const Neighbor<T> &a, const Neighbor<T> &b){
+//    return (a.distance == b.distance) ? 0 : ((a.distance > b.distance) ? 1 : -1);
+//}
+
+template<typename T>
+T comparator(const void * a, const void * b){
+    return ((Neighbor<T> *)a)->distance - ((Neighbor<T> *)b)->distance;
+}
+
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO finire di implementare la ricerca, versione cpu sequenziale / OpenMP
@@ -77,23 +101,33 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
             dist = dist + (diff * diff);
         }
 
-        tid = omp_get_thread_num();
+        //tid = omp_get_thread_num();
         // printf(" thread id = %d - i = %d \n", tid , i);
         // dist is the square of the distance: for efficiency I use it instead of distance to find neighbors
-        nnAllDistancesSqr[i] = dist;
-        nnAllIndexes[i] = i;
+//        nnAllDistancesSqr[i] = dist;
+//        nnAllIndexes[i] = i;
+        nearestNeighbors[i].distance = dist;
+        nearestNeighbors[i].index = i;
     }
 
     // sorting whit thrust is expensive why?
     // sort by increasing distance
+
     //thrust::sort_by_key(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize, &nnAllIndexes[0]);
-    // TODO usare std::sort o qsort che sono più veloci. Però c'è da fare in modo che venga ordinato anche il vettore degli indici
-    std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
+    //std::sort(&nnAllDistancesSqr[0], &nnAllDistancesSqr[0]+this->datasetSize);
     //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
 
+    //std::sort(&nearestNeighbors[0], &nearestNeighbors[0]+this->datasetSize);
+    qsort (&nearestNeighbors[0], this->datasetSize, sizeof(Neighbor<T>), comparator);
+
     // copy distances and indexes of nearest neighbors
-    std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);
-    std::memcpy(&nnIndexes[0], &nnAllIndexes[0], sizeof(int) * numResults);
+//    std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);
+//    std::memcpy(&nnIndexes[0], &nnAllIndexes[0], sizeof(int) * numResults);
+
+    for(int i = 0; i < numResults; i++) {
+        std::memcpy(&nnDistancesSqr[i], &nearestNeighbors[i].distance, sizeof(T));
+        std::memcpy(&nnIndexes[i], &nearestNeighbors[i].index, sizeof(int));
+    }
 }
 
 template<typename T>
