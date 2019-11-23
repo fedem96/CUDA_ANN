@@ -97,8 +97,7 @@ int main(int argc, char **argv) {
     const int datasetSize = host_dataset_vv.size();
     const int spaceDim = host_dataset_vv[0].size();     // 128
     const int numQueries = host_queries_vv.size();
-    assert(host_queries_vv.size() ==
-           host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
+    assert(host_queries_vv.size() == host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
     assert(numResults <= host_grTruth_vv[0].size());            // assert(numResults <= 100)
 
     /* some print to understand data */
@@ -128,7 +127,7 @@ int main(int argc, char **argv) {
     //// CPU evaluation
     int maxThreads = 1;
 #ifdef _OPENMP
-    maxThreads = maxThreads = omp_get_max_threads();
+    maxThreads = omp_get_max_threads();
 #endif
     for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
         start = std::chrono::high_resolution_clock::now();

@@ -52,12 +52,12 @@ private:
 
 // TODO modificare costruttore: permettere di scegliere se si vuole la versione sequenziale oppure OpenMP (nel secondo caso, permettere di scegliere il numero di thread)
 template<typename T>
-CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores), nnAllIndexes(datasetSize), nnAllDistancesSqr(datasetSize) {
+CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores), nnAllIndexes(datasetSize), nnAllDistancesSqr(datasetSize), nearestNeighbors(datasetSize) {
     assert(datasetSize > 0);
 }
 
 template<typename T>
-CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores), nnAllIndexes(dataset_vv.size()), nnAllDistancesSqr(dataset_vv.size())
+CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores), nnAllIndexes(dataset_vv.size()), nnAllDistancesSqr(dataset_vv.size()), nearestNeighbors(dataset_vv.size())
 {
     assert(datasetSize > 0);
     spaceDim = dataset_vv[0].size();
@@ -88,14 +88,14 @@ T comparator(const void * a, const void * b){
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
     // TODO finire di implementare la ricerca, versione cpu sequenziale / OpenMP
-    int tid;
+    //int tid;
     omp_set_num_threads(numCores);
 #pragma omp parallel for //private(numCores)
     //#pragma for schedule(auto)
     //#pragma for schedule(dynamic)
     for(int i=0; i < datasetSize ; i++) {
         T dist = 0;
-    //#pragma omp critical
+        //#pragma omp critical
         for (int j = 0; j < spaceDim; j++) {
             const T diff = query[j] - dataset[i * spaceDim + j];
             dist = dist + (diff * diff);
