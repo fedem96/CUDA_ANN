@@ -29,6 +29,6 @@ else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
     endif(if(OPENMP_FOUND))
 
-    add_executable(CUDA_Nearest_Neighbors src/main.cpp)
+    add_executable(CUDA_Nearest_Neighbors src/main.cpp src/csvfile.h)
 
 endif(CUDA_FOUND)

@@ -14,6 +14,7 @@
 #include <vector>
 #include <chrono>
 #include <omp.h>
+#include "csvfile.h"
 
 #ifdef __CUDACC__
 #include <cuda.h>
@@ -88,14 +89,15 @@ int main(int argc, char **argv) {
     std::cout << "\nReading groundtruth for queries" << std::endl;
     assert((readVecsFile<int, int>(groundtruthFileName, host_grTruth_vv, false)));
 
-    // dataset slice (to do quick tests) TODO rimuovere nella versione finale
+    // dataset slice (to do quick tests) TODO remove in final version
 //    const int numExamples = 30000;
 //    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
 //    host_dataset_vv.resize(numExamples);
 
     /* constants initialization */
     const int datasetSize = host_dataset_vv.size();
-    const int spaceDim = host_dataset_vv[0].size();     // 128
+    assert(datasetSize > 0);
+    const int spaceDim = 128; //FIXME problem whit release mode if i use  spaceDim = host_dataset_vv[0].size(); why?
     const int numQueries = host_queries_vv.size();
     assert(host_queries_vv.size() == host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
     assert(numResults <= host_grTruth_vv[0].size());            // assert(numResults <= 100)
@@ -129,27 +131,42 @@ int main(int argc, char **argv) {
 #ifdef _OPENMP
     maxThreads = omp_get_max_threads();
 #endif
-    for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
-        start = std::chrono::high_resolution_clock::now();
-        s = new CpuSearch<float>(host_dataset_vv, numCores);
-        std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
-        std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries,
-                                                                    numResults, true);
-        std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
-        std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-        delete s;
-    }
-    //// GPU evaluation
-#ifdef __CUDACC__
-    start = std::chrono::high_resolution_clock::now();
-	s = new CudaSearch<float>(host_dataset_vv);
-    std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
-    std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
-    std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
-    delete s;
-#endif
+    try // I use this for found a exception on csv
+    {   // THE CVS FILE IS CREATED INTO THE CMAKE-BUILD-DEBUG OR CMAKE-BUILD-RELEASE FOLDER !!!!!!!!!!
+        // TODO THE CSV FILE IS CREATED EVERY TIME WHEN I EXECUTE THE PROGRAM AND I WANT TO APPEND THE NEW CSV WHIT NEW EXPERIMENT
+        csvfile csv("Experiment.csv"); // throws exceptions!
+        // Hearer
+        csv << "num_threads" << "dataset_size" << "init time" << "eval time" << "time (init+eval)" << "processor" << endrow;
+        // Data example
+        // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 <<"Intel Core i7-9750H" << endrow;
 
+        for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
+            //TODO add the command for create a csv here like " alg_version;num_threads;dataset_size;time;name "
+            start = std::chrono::high_resolution_clock::now();
+            s = new CpuSearch<float>(host_dataset_vv, numCores);
+            std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
+            std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries,
+                                                                        numResults, true);
+            std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
+            std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
+            csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count() << cpuInitTime.count() + cpuEvalTime.count() << "processore" << endrow;
+            delete s;
+        }
+        //// GPU evaluation
+        #ifdef __CUDACC__
+            start = std::chrono::high_resolution_clock::now();
+            s = new CudaSearch<float>(host_dataset_vv);
+            std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
+            std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+            std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
+            std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
+            delete s;
+        #endif
+    }
+    catch (const std::exception &ex)
+    {
+        std::cout << "Exception was thrown: " << ex.what() << std::endl;
+    }
     // TODO dentro (o dopo) ogni search, salvare risultati su file csv
 
     delete [] host_queries_ptr;
