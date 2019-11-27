@@ -88,13 +88,13 @@ int main(int argc, char **argv) {
 
     //// files path definition
     // 10^6 examples dataset:
-//    std::string baseFileName = "/sift/sift_base.fvecs";
-//    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
-//    std::string queryFileName = "/sift/sift_query.fvecs";
+    std::string baseFileName = "/sift/sift_base.fvecs";
+    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
+    std::string queryFileName = "/sift/sift_query.fvecs";
     // 10^4 examples dataset:
-    std::string baseFileName = "/siftsmall/siftsmall_base.fvecs";
-    std::string groundtruthFileName = "/siftsmall/siftsmall_groundtruth.ivecs";
-    std::string queryFileName = "/siftsmall/siftsmall_query.fvecs";
+//    std::string baseFileName = "/siftsmall/siftsmall_base.fvecs";
+//    std::string groundtruthFileName = "/siftsmall/siftsmall_groundtruth.ivecs";
+//    std::string queryFileName = "/siftsmall/siftsmall_query.fvecs";
 
     // evaluation parameters
     int numResults = 100;
@@ -120,6 +120,7 @@ int main(int argc, char **argv) {
     const int numExamples = 500;
     //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
     host_dataset_vv.resize(numExamples);
+    host_dataset_vv.shrink_to_fit();
 
     //// constants initialization
     const int datasetSize = static_cast<const int>(host_dataset_vv.size());
@@ -176,17 +177,19 @@ int main(int argc, char **argv) {
 
         csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // can throw exception!
         // Header
-        csv << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow;
+        csv << "hw" << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow;
         // Data example
         // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 << endrow;
 
         //// CPU evaluation
         int maxThreads = 1;
+        //const int datasetLength[] = {10000,50000,150000,450000,1000000};
+        const int datasetLength[] = {100,200,300,400,500};
         #ifdef _OPENMP
                 maxThreads = omp_get_max_threads()/2;
         #endif
         for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
-            if(numCores < maxThreads) {
+            if(numCores < maxThreads && numCores > 1) {
                 //TODO add the command for create a csv here like " alg_version;num_threads;dataset_size;time;name "
                 std::cout << "Test on CPU, cores: " << numCores << std::endl;
                 start = std::chrono::high_resolution_clock::now();
@@ -196,18 +199,17 @@ int main(int argc, char **argv) {
                                                                             numQueries, numResults, true);
                 std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
                 std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-                csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count()
+                csv << "cpu" << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count()
                     << cpuInitTime.count() + cpuEvalTime.count() << endrow;
                 delete s;
 
             }
-            if(numCores == maxThreads) {
-                //const int datasetLength[] = {10000,50000,150000,450000,1000000};
-                const int datasetLength[] = {100,200,300,400,500};
+            if(numCores == maxThreads || numCores == 1) {
                 for(int n : datasetLength) {
                     std::vector<std::vector<float> > host_dataset_vv_tmp;
                     //host_dataset_vv_tmp = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + n);
                     host_dataset_vv_tmp.resize(n);
+                    host_dataset_vv_tmp.shrink_to_fit();
                     //MEM COPY
                     std::cout << "Test on CPU, cores: " << numCores << std::endl;
                     start = std::chrono::high_resolution_clock::now();
@@ -217,7 +219,7 @@ int main(int argc, char **argv) {
                                                                                 numQueries, numResults, true);
                     std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
                     std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-                    csv << numCores << n << cpuInitTime.count() << cpuEvalTime.count()
+                    csv << "cpu" << numCores << n << cpuInitTime.count() << cpuEvalTime.count()
                         << cpuInitTime.count() + cpuEvalTime.count() << endrow;
                     delete s;
                 }
@@ -227,15 +229,21 @@ int main(int argc, char **argv) {
 
         //// GPU evaluation
         #ifdef __CUDACC__
+        for(int n : datasetLength) {
+            std::vector<std::vector<float> > host_dataset_vv_tmp;
+            host_dataset_vv_tmp.resize(n);
+            host_dataset_vv_tmp.shrink_to_fit();
+
             start = std::chrono::high_resolution_clock::now();
-            s = new CudaSearch<float>(host_dataset_vv);
+            s = new CudaSearch<float>(host_dataset_vv_tmp);
             std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
             std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
             std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
             std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
             //TODO different block size test
-            csv << "BLOCK = xxxx" << datasetSize << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
+            csv << "gpu" << "BLOCK = xxxx" << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
             delete s;
+        }
         #endif
     }
     catch (const std::exception &ex)
