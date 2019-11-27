@@ -117,9 +117,9 @@ int main(int argc, char **argv) {
     }
 
     // dataset slice (to do quick tests) TODO remove in final version
-    const int numExamples = 20000;
-    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
-    host_dataset_vv.resize(numExamples);
+//    const int numExamples = 15000;
+//    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
+//    host_dataset_vv.resize(numExamples);
 
     //// constants initialization
     const int datasetSize = static_cast<const int>(host_dataset_vv.size());
@@ -141,7 +141,6 @@ int main(int argc, char **argv) {
         std::cerr << "Error: invalid sizes/dimensions" << std::endl;
         return 1;
     }
-
 
     //// some print to understand data
     //dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
@@ -171,21 +170,21 @@ int main(int argc, char **argv) {
     std::string strNow = std::ctime(&now);
     std::cout << strNow << std::endl;
 
-    //// CPU evaluation
-    int maxThreads = 1;
-#ifdef _OPENMP
-    maxThreads = omp_get_max_threads();
-#endif
-    try // I use this for found a exception on csv
-    {   // THE CVS FILE IS CREATED INTO THE CMAKE-BUILD-DEBUG OR CMAKE-BUILD-RELEASE FOLDER !!!!!!!!!!
-        // TODO THE CSV FILE IS CREATED EVERY TIME WHEN I EXECUTE THE PROGRAM AND I WANT TO APPEND THE NEW CSV WHIT NEW EXPERIMENT
 
-        csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // throws exceptions!
-        // Hearer
+    try // I use this for found a exception on csv
+    {
+
+        csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // can throw exception!
+        // Header
         csv << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow;
         // Data example
         // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 << endrow;
 
+        //// CPU evaluation
+        int maxThreads = 1;
+        #ifdef _OPENMP
+                maxThreads = omp_get_max_threads();
+        #endif
         for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
             //TODO add the command for create a csv here like " alg_version;num_threads;dataset_size;time;name "
             std::cout << "Test on CPU, cores: " << numCores << std::endl;
@@ -198,6 +197,7 @@ int main(int argc, char **argv) {
             csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count() << cpuInitTime.count() + cpuEvalTime.count() << endrow;
             delete s;
         }
+
         //// GPU evaluation
         #ifdef __CUDACC__
             start = std::chrono::high_resolution_clock::now();

@@ -7,6 +7,9 @@
 #include <thrust/sort.h>
 #include "search.hpp"
 #define BLOCK_SIZE 1024
+//#define BLOCK_SIZE1 1024
+//#define BLOCK_SIZE2 1024
+//#define BLOCK_SIZE3 1024
 
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }
 /**
@@ -73,7 +76,7 @@ CudaSearch<T>::CudaSearch(const std::vector< std::vector<T> > &dataset) : datase
 
 }
 
-template <typename T>
+template <typename T>//, typename BLOCK_SIZE>
 __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restrict__ query,
                                int *__restrict__ nnIndexes, T *__restrict__ nnDistancesSqr, const int datasetSize,
                                const int spaceDim){//, std::vector<int> v){
@@ -87,31 +90,6 @@ __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restric
         const T diff = query[j] - dataset[i*spaceDim + j];
         dist = dist + (diff * diff);
     }
-    // TODO vedere se è possibile modificare questa implementazione per velocizzare il calcolo delle distanze
-
-//  loop unrolling
-//    T* ptrLastQuery = query + spaceDim;
-//    T* ptrLastQueryGroup = ptrLastQuery - 3;
-//    dataset = dataset + (i*spaceDim);
-//    while (query < ptrLastQueryGroup) {
-//        const T diff0 = query[0] - dataset[0];
-//        const T diff1 = query[1] - dataset[1];
-//        const T diff2 = query[2] - dataset[2];
-//        const T diff3 = query[3] - dataset[3];
-//        const T diff4 = query[4] - dataset[4];
-//        const T diff5 = query[5] - dataset[5];
-//        const T diff6 = query[6] - dataset[6];
-//        const T diff7 = query[7] - dataset[7];
-//        dist = dist + (diff0 * diff0) + (diff1 * diff1) + (diff2 * diff2) + (diff3 * diff3) + (diff4 * diff4) + (diff5 * diff5) + (diff6 * diff6) + (diff7 * diff7);
-//        query = query + 8;
-//        dataset = dataset + 8;
-//    }
-////    while (query < ptrLastQueryGroup) {
-////        const T diff = query[0] - dataset[0];
-////        dist = dist + (diff*diff);
-////        query += 1;
-////        dataset += 1;
-////    }
 
     nnDistancesSqr[i] = dist;
     nnIndexes[i] = i;
@@ -132,8 +110,10 @@ search(T* host_query, std::vector<int> &host_nnIndexes, std::vector<T> &host_nnD
     // calculate distances between query and each dataset point
     // TODO capire il numero ottimale della dimensione dei blocchi dal file excel di NVIDIA
     int numBlocks = static_cast<int>((datasetSize+BLOCK_SIZE-1) / BLOCK_SIZE);
-    _cudaDistances <<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, spaceDim);//, v);
-    CUDA_CHECK_RETURN(cudaDeviceSynchronize());
+    _cudaDistances <<<numBlocks,BLOCK_SIZE>>>(this->dataset, this->query, this->nnIndexes, this->nnDistancesSqr, this->datasetSize, spaceDim);
+    // TODO diversi block size
+
+    CUDA_CHECK_RETURN(cudaDeviceSynchronize()); // TODO vedere se serve davvero
 
     // sort by increasing distance
     thrust::device_ptr<T> device_thrustDistances(this->nnDistancesSqr);
