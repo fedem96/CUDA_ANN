@@ -88,13 +88,13 @@ int main(int argc, char **argv) {
 
     //// files path definition
     // 10^6 examples dataset:
-//    std::string baseFileName = "/sift/sift_base.fvecs";
-//    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
-//    std::string queryFileName = "/sift/sift_query.fvecs";
+    std::string baseFileName = "/sift/sift_base.fvecs";
+    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
+    std::string queryFileName = "/sift/sift_query.fvecs";
     // 10^4 examples dataset:
-    std::string baseFileName = "/siftsmall/siftsmall_base.fvecs";
-    std::string groundtruthFileName = "/siftsmall/siftsmall_groundtruth.ivecs";
-    std::string queryFileName = "/siftsmall/siftsmall_query.fvecs";
+//    std::string baseFileName = "/siftsmall/siftsmall_base.fvecs";
+//    std::string groundtruthFileName = "/siftsmall/siftsmall_groundtruth.ivecs";
+//    std::string queryFileName = "/siftsmall/siftsmall_query.fvecs";
 
     // evaluation parameters
     int numResults = 100;
@@ -117,9 +117,10 @@ int main(int argc, char **argv) {
     }
 
     // dataset slice (to do quick tests) TODO remove in final version
-    const int numExamples = 500;
+    const int numExamples = 10000;
     //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
     host_dataset_vv.resize(numExamples);
+    host_dataset_vv.shrink_to_fit();
 
     //// constants initialization
     const int datasetSize = static_cast<const int>(host_dataset_vv.size());
@@ -141,6 +142,11 @@ int main(int argc, char **argv) {
         std::cerr << "Error: invalid sizes/dimensions" << std::endl;
         return 1;
     }
+
+//    float* host_dataset = new float[datasetSize * spaceDim];
+//    for(int i=0; i < datasetSize; i++){
+//        std::memcpy(host_dataset + (i*spaceDim), &host_dataset_vv[i][0], sizeof(float) * spaceDim);
+//    }
 
     //// some print to understand data
     //dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
@@ -183,7 +189,7 @@ int main(int argc, char **argv) {
         //// CPU evaluation
         int maxThreads = 1;
         #ifdef _OPENMP
-                maxThreads = omp_get_max_threads()/2;
+                maxThreads = omp_get_max_threads();
         #endif
         for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
             if(numCores < maxThreads) {
@@ -191,9 +197,10 @@ int main(int argc, char **argv) {
                 std::cout << "Test on CPU, cores: " << numCores << std::endl;
                 start = std::chrono::high_resolution_clock::now();
                 s = new CpuSearch<float>(host_dataset_vv, numCores);
+                //s = new CpuSearch<float>(host_dataset, datasetSize, spaceDim, numCores);
                 std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
                 std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
-                                                                            numQueries, numResults, true);
+                                                                            numQueries, numResults, false);
                 std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
                 std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
                 csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count()
@@ -203,18 +210,20 @@ int main(int argc, char **argv) {
             }
             if(numCores == maxThreads) {
                 //const int datasetLength[] = {10000,50000,150000,450000,1000000};
-                const int datasetLength[] = {100,200,300,400,500};
+                const int datasetLength[] = {100,200,300,400,500,10000};
                 for(int n : datasetLength) {
                     std::vector<std::vector<float> > host_dataset_vv_tmp;
-                    //host_dataset_vv_tmp = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + n);
-                    host_dataset_vv_tmp.resize(n);
+                    host_dataset_vv_tmp = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + n);
+                    //host_dataset_vv_tmp.resize(n);
+                    host_dataset_vv_tmp.shrink_to_fit();
                     //MEM COPY
                     std::cout << "Test on CPU, cores: " << numCores << std::endl;
                     start = std::chrono::high_resolution_clock::now();
                     s = new CpuSearch<float>(host_dataset_vv_tmp, numCores);
+                    //s = new CpuSearch<float>(host_dataset, n, spaceDim, numCores);
                     std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
                     std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
-                                                                                numQueries, numResults, true);
+                                                                                numQueries, numResults, false);
                     std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
                     std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
                     csv << numCores << n << cpuInitTime.count() << cpuEvalTime.count()
