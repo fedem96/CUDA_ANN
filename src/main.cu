@@ -188,6 +188,7 @@ int main(int argc, char **argv) {
 
         //// CPU evaluation
         int maxThreads = 1;
+        //TODO use this in final version for compare the dataset length experiment
         //const int datasetLength[] = {10000,50000,150000,450000,1000000};
         const int datasetLength[] = {100,200,300,400,500};
         #ifdef _OPENMP
@@ -199,7 +200,6 @@ int main(int argc, char **argv) {
                 std::cout << "Test on CPU, cores: " << numCores << std::endl;
                 start = std::chrono::high_resolution_clock::now();
                 s = new CpuSearch<float>(host_dataset_vv, numCores);
-                //s = new CpuSearch<float>(host_dataset, datasetSize, spaceDim, numCores);
                 std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
                 std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
                                                                             numQueries, numResults, true);
@@ -220,7 +220,6 @@ int main(int argc, char **argv) {
                     std::cout << "Test on CPU, cores: " << numCores << std::endl;
                     start = std::chrono::high_resolution_clock::now();
                     s = new CpuSearch<float>(host_dataset_vv_tmp, numCores);
-                    //s = new CpuSearch<float>(host_dataset, n, spaceDim, numCores);
                     std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
                     std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
                                                                                 numQueries, numResults, true);
@@ -236,20 +235,24 @@ int main(int argc, char **argv) {
 
         //// GPU evaluation
         #ifdef __CUDACC__
-        for(int n : datasetLength) {
-            std::vector<std::vector<float> > host_dataset_vv_tmp;
-            host_dataset_vv_tmp.resize(n);
-            host_dataset_vv_tmp.shrink_to_fit();
+        int cudaBlock [] = {1024,128,4096}; //TODO CHANGE BLOCK IN CONSTRUCTOR FOR CUDA!
+        for(int block : cudaBlock){
+            for(int n : datasetLength) {
+                std::vector<std::vector<float> > host_dataset_vv_tmp;
+                host_dataset_vv_tmp.resize(n);
+                host_dataset_vv_tmp.shrink_to_fit();
 
-            start = std::chrono::high_resolution_clock::now();
-            s = new CudaSearch<float>(host_dataset_vv_tmp);
-            std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-            std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
-            std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
-            std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
-            //TODO different block size test
-            csv << "gpu" << "BLOCK = xxxx" << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
-            delete s;
+                start = std::chrono::high_resolution_clock::now();
+                s = new CudaSearch<float>(host_dataset_vv_tmp,block);
+                std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
+                std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+                std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
+                std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
+                //TODO different block size test
+                std::string strBlock(block);
+                csv << "gpu" << ("BLOCK=" + strBlock) << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
+                delete s;
+            }
         }
         #endif
     }

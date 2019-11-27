@@ -7,9 +7,9 @@
 #include <thrust/sort.h>
 #include "search.hpp"
 #define BLOCK_SIZE 1024
-//#define BLOCK_SIZE1 1024
-//#define BLOCK_SIZE2 1024
-//#define BLOCK_SIZE3 1024
+#define BLOCK_SIZE1 1024
+#define BLOCK_SIZE2 1024
+#define BLOCK_SIZE3 1024
 
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }
 /**
