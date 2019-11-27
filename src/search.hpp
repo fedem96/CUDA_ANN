@@ -60,7 +60,7 @@ template<typename T>
 CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int numCores) : datasetSize(dataset_vv.size()), numCores(numCores), nnAllIndexes(dataset_vv.size()), nnAllDistancesSqr(dataset_vv.size()), nearestNeighbors(dataset_vv.size())
 {
     assert(datasetSize > 0);
-    spaceDim = 128; //FIXME problem whit release mode if i use  spaceDim = host_dataset_vv[0].size(); why?
+    spaceDim = dataset_vv.at(0).size();
     dataset = new T[datasetSize * spaceDim];
     datasetAllocated = true;
     for(int i=0; i < datasetSize; i++){
@@ -118,7 +118,7 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
     //qsort (&nnAllDistancesSqr[0], this->datasetSize, sizeof(T), compare);
 
     //std::sort(&nearestNeighbors[0], &nearestNeighbors[0]+this->datasetSize);
-    qsort (&nearestNeighbors[0], this->datasetSize, sizeof(Neighbor<T>), comparator);
+    //qsort (&nearestNeighbors[0], this->datasetSize, sizeof(Neighbor<T>), comparator);
 
     // copy distances and indexes of nearest neighbors
 //    std::memcpy(&nnDistancesSqr[0], &nnAllDistancesSqr[0], sizeof(T)  * numResults);

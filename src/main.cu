@@ -58,35 +58,43 @@ bool checkCorrectness(std::vector< std::vector<int> > &groundTruth, std::vector<
 /** Execute the experiments
   */
 int main(int argc, char **argv) {
+    #ifdef __CUDACC__
+        std::cout << "__CUDACC__ defined" << std::endl;
+    #endif
     #ifdef _OPENMP
         std::cout << "_OPENMP defined" << std::endl;
     #endif
     // TODO prendere i parametri per gli esperimenti da riga di comando
 
     std::string dataFolder = "../data";
+    std::string experimentsFolder = "../experiments";
     char opt;
-    while ((opt = getopt(argc, argv, "d:")) != -1) {
+    while ((opt = getopt(argc, argv, "d:e:")) != -1) {
         switch (opt) {
             case 'd':
                 dataFolder = optarg;
                 break;
+            case 'e':
+                experimentsFolder = optarg;
+                break;
             default: /* '?' */
-                fprintf(stderr, "Usage: %s [-d path_to_data_folder]\n", argv[0]);
+                fprintf(stderr, "Usage: %s [-d path_to_data_folder] [-e path_to_experiments_output_folder]\n", argv[0]);
                 exit(EXIT_FAILURE);
         }
     }
 
-    std::cout << "reading dataset in: " << dataFolder << std::endl;
+    std::cout << "data folder is: " << dataFolder << std::endl;
+    std::cout << "output folder is: " << experimentsFolder << std::endl;
 
     //// files path definition
     // 10^6 examples dataset:
-    std::string baseFileName = "/sift/sift_base.fvecs";
-    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
-    std::string queryFileName = "/sift/sift_query.fvecs";
+//    std::string baseFileName = "/sift/sift_base.fvecs";
+//    std::string groundtruthFileName = "/sift/sift_groundtruth.ivecs";
+//    std::string queryFileName = "/sift/sift_query.fvecs";
     // 10^4 examples dataset:
-//    std::string baseFileName = "../data/siftsmall/siftsmall_base.fvecs";
-//    std::string groundtruthFileName = "../data/siftsmall/siftsmall_groundtruth.ivecs";
-//    std::string queryFileName = "../data/siftsmall/siftsmall_query.fvecs";
+    std::string baseFileName = "/siftsmall/siftsmall_base.fvecs";
+    std::string groundtruthFileName = "/siftsmall/siftsmall_groundtruth.ivecs";
+    std::string queryFileName = "/siftsmall/siftsmall_query.fvecs";
 
     //// evaluation parameters
     int numResults = 100;
@@ -97,34 +105,43 @@ int main(int argc, char **argv) {
     std::vector<std::vector<int> > host_grTruth_vv;        // numQueries  x 100            <- first 100 nearest neighbors for each test sample
 
     //// reading of dataset, queries and groundtruth
-    std::cout << "Reading dataset" << std::endl;
+    std::cout << "Reading dataset, queries and groundtruth for queries" << std::endl;
     // TODO safely join paths dataFolder and ... (provare con libreria boost)
-    assert((readVecsFile<float, float>(dataFolder + baseFileName, host_dataset_vv, true)));
-    std::cout << "Reading queries" << std::endl;
-    assert((readVecsFile<float, float>(dataFolder + queryFileName, host_queries_vv, true)));
-    std::cout << "Reading groundtruth for queries" << std::endl;
-    assert((readVecsFile<int, int>(dataFolder + groundtruthFileName, host_grTruth_vv, true)));
+    bool b = readVecsFile<float, float>(dataFolder + baseFileName, host_dataset_vv, false) &&
+        readVecsFile<float, float>(dataFolder + queryFileName, host_queries_vv, false) &&
+        readVecsFile<int, int>(dataFolder + groundtruthFileName, host_grTruth_vv, false);
+
+    if(!b){
+        std::cerr << "Error: cannot read data" << std::endl;
+        return 1;
+    }
 
     // dataset slice (to do quick tests) TODO remove in final version
-//    const int numExamples = 30000;
-//    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
-//    host_dataset_vv.resize(numExamples);
+    const int numExamples = 20000;
+    host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
+    host_dataset_vv.resize(numExamples);
 
     //// constants initialization
     const int datasetSize = static_cast<const int>(host_dataset_vv.size());
     std::cout << "Dataset size: " << datasetSize << std::endl;
 
-    std::cout << "Space size: " << host_dataset_vv.at(0).size() << std::endl;
-    const int spaceDim = 128; //FIXME problem whit release mode if I use  spaceDim = host_dataset_vv[0].size(); why?
+    const int spaceDim = host_dataset_vv.at(0).size();
+    std::cout << "Space size: " << spaceDim << std::endl;
 
     const int numQueries = static_cast<const int>(host_queries_vv.size());
     std::cout << "Number of queries: " << host_dataset_vv.size() << std::endl;
+    std::cout << "k parameter for kNN: " << numResults << std::endl;
+    
+    b = datasetSize > 0 &&
+        spaceDim > 0 &&
+        numQueries > 0 &&
+        host_queries_vv.size() == host_grTruth_vv.size() &&      // host_queries_vv and host_grTruth_vv must have same length
+        numResults <= host_grTruth_vv.at(0).size();            // (numResults <= 100)
+    if(!b){
+        std::cerr << "Error: invalid sizes/dimensions" << std::endl;
+        return 1;
+    }
 
-    assert(datasetSize > 0);
-    assert(spaceDim > 0);
-    assert(numQueries > 0);
-    assert(host_queries_vv.size() == host_grTruth_vv.size());          // host_queries_vv and host_grTruth_vv must have same length
-    assert(numResults <= host_grTruth_vv.at(0).size());            // assert(numResults <= 100)
 
     //// some print to understand data
     //dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
@@ -150,6 +167,10 @@ int main(int argc, char **argv) {
     //// evaluation: for each implementation, execute search and measure elapsed time
     Search<float> *s;
     auto start = std::chrono::high_resolution_clock::now();
+    std::time_t now = std::chrono::system_clock::to_time_t(start);
+    std::string strNow = std::ctime(&now);
+    std::cout << strNow << std::endl;
+
     //// CPU evaluation
     int maxThreads = 1;
 #ifdef _OPENMP
@@ -158,11 +179,12 @@ int main(int argc, char **argv) {
     try // I use this for found a exception on csv
     {   // THE CVS FILE IS CREATED INTO THE CMAKE-BUILD-DEBUG OR CMAKE-BUILD-RELEASE FOLDER !!!!!!!!!!
         // TODO THE CSV FILE IS CREATED EVERY TIME WHEN I EXECUTE THE PROGRAM AND I WANT TO APPEND THE NEW CSV WHIT NEW EXPERIMENT
-        csvfile csv("Experiment.csv"); // throws exceptions!
+
+        csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // throws exceptions!
         // Hearer
-        csv << "num_threads" << "dataset_size" << "init time" << "eval time" << "time (init+eval)" << "processor" << endrow;
+        csv << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow;
         // Data example
-        // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 <<"Intel Core i7-9750H" << endrow;
+        // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 << endrow;
 
         for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
             //TODO add the command for create a csv here like " alg_version;num_threads;dataset_size;time;name "
@@ -173,7 +195,7 @@ int main(int argc, char **argv) {
             std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
             std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
             std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-            csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count() << cpuInitTime.count() + cpuEvalTime.count() << "processore" << endrow;
+            csv << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count() << cpuInitTime.count() + cpuEvalTime.count() << endrow;
             delete s;
         }
         //// GPU evaluation
@@ -218,7 +240,6 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
 
     // eventually check for correctness
     if(mustCheckCorrectness) {
-        //assert(checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr));
         bool c = checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr);
         std::cout << "correctness: " << (c?"true":"false") << std::endl;
     }

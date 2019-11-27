@@ -19,18 +19,9 @@ inline static csvfile& flush(csvfile& file);
 
 class csvfile
 {
-    std::ofstream fs_;
-    bool is_first_;
-    const std::string separator_;
-    const std::string escape_seq_;
-    const std::string special_chars_;
 public:
     csvfile(const std::string filename, const std::string separator = ";")
-            : fs_()
-            , is_first_(true)
-            , separator_(separator)
-            , escape_seq_("\"")
-            , special_chars_("\"")
+            : fs_(), is_first_(true), separator_(separator), escape_seq_("\""), special_chars_("\"")
     {
         fs_.exceptions(std::ios::failbit | std::ios::badbit);
         fs_.open(filename);
@@ -75,6 +66,12 @@ public:
     }
 
 private:
+    std::ofstream fs_;
+    bool is_first_;
+    const std::string separator_;
+    const std::string escape_seq_;
+    const std::string special_chars_;
+
     template<typename T>
     csvfile& write (const T& val)
     {
