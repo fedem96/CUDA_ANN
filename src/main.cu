@@ -143,17 +143,17 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    //// some print to understand data
-    //dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
+//    // some print to understand data
+//    dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
 //    for(int i=0; i<host_grTruth_vv.size(); i++)
 //        for(int j=0; j<host_grTruth_vv[0].size(); j++)
 //            if(!(host_grTruth_vv[i][j] >= 0 && host_grTruth_vv[i][j] < datasetSize))
 //            	cout << "ERRORE: "<< i << " " << j<< " "<< host_grTruth_vv[i][j] << std::endl;
 
 
-    //// data conversion
-    // convert queries from vector of vectors into raw pointer
-    // TODO capire perché con la pinned va più lento mentre invece dovrebbe essere più veloce (forse perché il dato trasferito è piccolo, ogni query è 512 byte)
+//    // data conversion
+//     convert queries from vector of vectors into raw pointer
+//     TODO capire perché con la pinned va più lento mentre invece dovrebbe essere più veloce (forse perché il dato trasferito è piccolo, ogni query è 512 byte)
     float *host_queries_ptr;
 //    CUDA_CHECK_RETURN(
 //            cudaMallocHost((void ** )&host_queries_ptr, sizeof(float) * numQueries * spaceDim)     // allocate pinned memory on host RAM: it allows the use of DMA, speeding up cudaMemcpy
@@ -183,6 +183,7 @@ int main(int argc, char **argv) {
 
         //// CPU evaluation
         int maxThreads = 1;
+        //TODO use this in final version for compare the dataset length experiment
         //const int datasetLength[] = {10000,50000,150000,450000,1000000};
         const int datasetLength[] = {100,200,300,400,500};
         #ifdef _OPENMP
@@ -229,20 +230,23 @@ int main(int argc, char **argv) {
 
         //// GPU evaluation
         #ifdef __CUDACC__
-        for(int n : datasetLength) {
-            std::vector<std::vector<float> > host_dataset_vv_tmp;
-            host_dataset_vv_tmp.resize(n);
-            host_dataset_vv_tmp.shrink_to_fit();
+        int cudaBlock [] = {1024,128,4096}; //TODO CHANGE BLOCK IN CONSTRUCTOR FOR CUDA!
+        for(int block : cudaBlock){
+            for(int n : datasetLength) {
+                std::vector<std::vector<float> > host_dataset_vv_tmp;
+                host_dataset_vv_tmp.resize(n);
+                host_dataset_vv_tmp.shrink_to_fit();
 
-            start = std::chrono::high_resolution_clock::now();
-            s = new CudaSearch<float>(host_dataset_vv_tmp);
-            std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-            std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
-            std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
-            std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
-            //TODO different block size test
-            csv << "gpu" << "BLOCK = xxxx" << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
-            delete s;
+                start = std::chrono::high_resolution_clock::now();
+                s = new CudaSearch<float>(host_dataset_vv_tmp,bl);
+                std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
+                std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+                std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
+                std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
+                //TODO different block size test
+                csv << "gpu" << "BLOCK = xxxx" << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
+                delete s;
+            }
         }
         #endif
     }
