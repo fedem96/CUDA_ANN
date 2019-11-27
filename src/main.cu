@@ -238,13 +238,14 @@ int main(int argc, char **argv) {
                 host_dataset_vv_tmp.shrink_to_fit();
 
                 start = std::chrono::high_resolution_clock::now();
-                s = new CudaSearch<float>(host_dataset_vv_tmp,bl);
+                s = new CudaSearch<float>(host_dataset_vv_tmp,block);
                 std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
                 std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
                 std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
                 std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
                 //TODO different block size test
-                csv << "gpu" << "BLOCK = xxxx" << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
+                std::string strBlock(block);
+                csv << "gpu" << ("BLOCK=" + strBlock) << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
                 delete s;
             }
         }
