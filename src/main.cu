@@ -117,10 +117,10 @@ int main(int argc, char **argv) {
     }
 
     // dataset slice (to do quick tests) TODO remove in final version
-    const int numExamples = 500;
-    //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
-    host_dataset_vv.resize(numExamples);
-    host_dataset_vv.shrink_to_fit();
+//    const int numExamples = 5000;
+//    //host_dataset_vv = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + numExamples);
+//    host_dataset_vv.resize(numExamples);
+//    host_dataset_vv.shrink_to_fit();
 
     //// constants initialization
     const int datasetSize = static_cast<const int>(host_dataset_vv.size());
@@ -136,8 +136,7 @@ int main(int argc, char **argv) {
     b = datasetSize > 0 &&
         spaceDim > 0 &&
         numQueries > 0 &&
-        host_queries_vv.size() == host_grTruth_vv.size() &&      // host_queries_vv and host_grTruth_vv must have same length
-        numResults <= host_grTruth_vv.at(0).size();            // (numResults <= 100)
+        host_queries_vv.size() == host_grTruth_vv.size();      // host_queries_vv and host_grTruth_vv must have same length
     if(!b){
         std::cerr << "Error: invalid sizes/dimensions" << std::endl;
         return 1;
@@ -148,7 +147,7 @@ int main(int argc, char **argv) {
 //        std::memcpy(host_dataset + (i*spaceDim), &host_dataset_vv[i][0], sizeof(float) * spaceDim);
 //    }
 
-    //// some print to understand data
+    //// some print to understand data TODO remove in final version
     //dataPrint(host_dataset_vv, host_grTruth_vv, host_queries_vv);
 //    for(int i=0; i<host_grTruth_vv.size(); i++)
 //        for(int j=0; j<host_grTruth_vv[0].size(); j++)
@@ -173,94 +172,73 @@ int main(int argc, char **argv) {
     Search<float> *s;
     auto start = std::chrono::high_resolution_clock::now();
     std::time_t now = std::chrono::system_clock::to_time_t(start);
-    std::string strNow = std::ctime(&now);
+    std::string strNow = std::ctime(&now);    // string representing current date and time, used as the name of the csv file
+    strNow = strNow.substr(0, strNow.size()-1); // remove last character
     std::cout << strNow << std::endl;
 
 
-    try // I use this for found a exception on csv
+    try // I use this to find an exception on csv opening
     {
 
         csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // can throw exception!
-        // Header
-        csv << "hw" << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow;
-        // Data example
-        // csv <<  "seq" << 0 << 1000 << 0.5 << 0.5 << 1 << endrow;
+        csv << "hw" << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow; // header
 
-        //// CPU evaluation
-        int maxThreads = 1;
-        //TODO use this in final version for compare the dataset length experiment
-        //const int datasetLength[] = {10000,50000,150000,450000,1000000};
-        const int datasetLength[] = {100,200,300,400,500};
-        #ifdef _OPENMP
-                maxThreads = omp_get_max_threads()/2;
+        int maxThreadsCPU = 1;
+        #ifdef _OPENMP // for hyper-threaded CPUs, omp_get_max_threads returns twice the number of cores: such a high number of threads brings no benefit
+                maxThreadsCPU = omp_get_max_threads()/2;
         #endif
-        for(int numCores = 1; numCores <= maxThreads; numCores++){  // openmp directive for the number of cores
-            if(numCores < maxThreads && numCores > 1) {
-                //TODO add the command for create a csv here like " alg_version;num_threads;dataset_size;time;name "
+
+        //const int sizes[] = {10000,50000,150000,450000,1000000}; //TODO use this in final version to compare the dataset length experiment
+        const int sizes[] = {datasetSize/100, datasetSize/20, datasetSize/10, datasetSize};
+        for(int n : sizes) {
+
+            std::vector <std::vector<float>> host_dataset_vv_tmp;
+            host_dataset_vv_tmp = std::vector < std::vector < float > > (host_dataset_vv.begin(), host_dataset_vv.begin() + n);
+            host_dataset_vv_tmp.shrink_to_fit();
+
+            //// CPU evaluation
+            for (int numCores = 1; numCores <= maxThreadsCPU; numCores++) {
+                if (n != datasetSize && 1 < numCores && numCores < maxThreadsCPU)
+                    continue; // try a different number of dataset examples only for single-thread and max number of threads
+
                 std::cout << "Test on CPU, cores: " << numCores << std::endl;
                 start = std::chrono::high_resolution_clock::now();
-                s = new CpuSearch<float>(host_dataset_vv, numCores);
+                s = new CpuSearch<float>(host_dataset_vv_tmp, numCores);
                 std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
-                std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
-                                                                            numQueries, numResults, true);
+                std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, false);
                 std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
                 std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-                csv << "cpu" << numCores << datasetSize << cpuInitTime.count() << cpuEvalTime.count()
+                csv << "cpu" << numCores << n << cpuInitTime.count() << cpuEvalTime.count()
                     << cpuInitTime.count() + cpuEvalTime.count() << endrow;
                 delete s;
-
             }
-            if(numCores == maxThreads || numCores == 1) {
-                for(int n : datasetLength) {
-                    std::vector<std::vector<float> > host_dataset_vv_tmp;
-                    //host_dataset_vv_tmp = std::vector< std::vector<float> >(host_dataset_vv.begin(), host_dataset_vv.begin() + n);
-                    host_dataset_vv_tmp.resize(n);
-                    host_dataset_vv_tmp.shrink_to_fit();
-                    //MEM COPY
-                    std::cout << "Test on CPU, cores: " << numCores << std::endl;
+
+            //// GPU evaluation
+            #ifdef __CUDACC__
+                int cudaBlock [] = {32, 64, 128, 256, 512, 1024};
+                for(int block : cudaBlock){
+//                    if(block != bestBlock) // TODO scegliere best
+//                        continue;
+
                     start = std::chrono::high_resolution_clock::now();
-                    s = new CpuSearch<float>(host_dataset_vv_tmp, numCores);
-                    std::chrono::duration<double> cpuInitTime = std::chrono::high_resolution_clock::now() - start;
-                    std::chrono::duration<double> cpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv,
-                                                                                numQueries, numResults, true);
-                    std::cout << "CPU (Cores:" << numCores << ") init time: " << cpuInitTime.count() << std::endl;
-                    std::cout << "CPU (Cores:" << numCores << ") eval time: " << cpuEvalTime.count() << std::endl;
-                    csv << "cpu" << numCores << n << cpuInitTime.count() << cpuEvalTime.count()
-                        << cpuInitTime.count() + cpuEvalTime.count() << endrow;
+                    s = new CudaSearch<float>(host_dataset_vv_tmp, block);
+                    std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
+                    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+                    std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
+                    std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
+
+                    std::string strBlock = std::to_string(block);
+                    csv << "gpu" << ("BLOCK=" + strBlock) << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
                     delete s;
                 }
-            }
+            #endif
 
         }
-
-        //// GPU evaluation
-        #ifdef __CUDACC__
-        int cudaBlock [] = {1024,128,4096}; //TODO CHANGE BLOCK IN CONSTRUCTOR FOR CUDA!
-        for(int block : cudaBlock){
-            for(int n : datasetLength) {
-                std::vector<std::vector<float> > host_dataset_vv_tmp;
-                host_dataset_vv_tmp.resize(n);
-                host_dataset_vv_tmp.shrink_to_fit();
-
-                start = std::chrono::high_resolution_clock::now();
-                s = new CudaSearch<float>(host_dataset_vv_tmp,block);
-                std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-                std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
-                std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
-                std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
-                //TODO different block size test
-                std::string strBlock(block);
-                csv << "gpu" << ("BLOCK=" + strBlock) << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
-                delete s;
-            }
-        }
-        #endif
     }
     catch (const std::exception &ex)
     {
         std::cout << "Exception was thrown: " << ex.what() << std::endl;
     }
-    // TODO dentro (o dopo) ogni search, salvare risultati su file csv
 
     delete [] host_queries_ptr;
 
@@ -274,8 +252,7 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
     std::vector<std::vector<int> > nnAllIndexes(numQueries, std::vector<int>(numResults));    // numQueries x numResults
     std::vector<std::vector<T> > nnAllDistancesSqr(numQueries, std::vector<float>(numResults));     // numQueries x numResults
 
-    // measure time of execution of all queries
-
+    //// measure time of execution of all queries
     auto start = std::chrono::high_resolution_clock::now();
     int sd = s->getSpaceDim();
     for(int i = 0; i < numQueries; i++){
@@ -285,7 +262,7 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsedTime = end-start;
 
-    // eventually check for correctness
+    //// eventually check for correctness
     if(mustCheckCorrectness) {
         bool c = checkCorrectness(groundTruth, nnAllIndexes, nnAllDistancesSqr);
         std::cout << "correctness: " << (c?"true":"false") << std::endl;
@@ -296,11 +273,13 @@ std::chrono::duration<double> evaluate(Search<T> *s, T* queries_ptr, std::vector
 
 template <typename T>
 bool checkCorrectness(std::vector< std::vector<int> > &groundTruth, std::vector<std::vector<int> > &nnAllIndexes, std::vector<std::vector<T> > &nnAllDistancesSqr){
-    for(int i = 0; i < nnAllIndexes.size(); i++){
+    for(int i = 0; i < nnAllIndexes.size(); i++) {
         //std::cout << "\nelement " << i << " of vector groundtruth (" << groundTruth[i].size() << " elements):\n\t" << vecToStr<int>(groundTruth[i]) << std::endl;
         //std::cout << "\nelement " << i << " of vector nnAllIndexes (" << nnAllIndexes[i].size() << " elements):\n\t" << vecToStr<int>(nnAllIndexes[i]) << std::endl;
-        if(!checkKNN<float>(groundTruth[i], nnAllIndexes[i], nnAllDistancesSqr[i]))
+        if (!checkKNN<float>(groundTruth[i], nnAllIndexes[i], nnAllDistancesSqr[i])) {
+            std::cout << vecToStr(nnAllDistancesSqr[i]) << std::endl;
             return false;
+        }
     }
     return true;
 }

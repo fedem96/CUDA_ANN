@@ -40,20 +40,27 @@ bool checkKNN(const std::vector<int> &groundTruth, const std::vector<int> &index
     for(int i=0; i < checkableElements; i++){
         bool match = false;
 
-        for(int j=i; j < checkableElements && distances[i] == distances[j]; j++)
-            if(indexes[j] == groundTruth[i])
+        for(int j=i; j < indexes.size() && distances[i] == distances[j]; j++)
+            if(indexes[j] == groundTruth[i]) {
                 match = true;
+                break;
+            }
+
 
         if(!match)
             for(int j=i-1; j >= 0 && distances[i] == distances[j]; j--)
-                if(indexes[j] == groundTruth[i])
+                if(indexes[j] == groundTruth[i]) {
                     match = true;
+                    break;
+                }
+
         if(!match) {
-            std::cout << "assertion failed: i=" << i << ", indexes[i]=" << indexes[i] << ", groundTruth[i]=" << groundTruth[i] << std::endl;
+            std::cout << "KNN mismatch: i=" << i << ", indexes[i]=" << indexes[i] << ", groundTruth[i]=" << groundTruth[i] << std::endl;
+            // remark: sometimes this function returns false even if the results are correct
+            // e.g.: if last element of the ground truth (or of the results) has the same distance of another element
             return false;
         }
     }
-    //std::cout << "assert OK" << std::endl;
     return true;
 }
 
