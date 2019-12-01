@@ -20,8 +20,8 @@ struct Neighbor {
     bool operator==(const Neighbor& rhs) { return distance == rhs.distance; }
 };
 
-template<typename InputIterator, typename OutputIterator>
-OutputIterator merge(InputIterator, InputIterator, InputIterator, InputIterator, OutputIterator);
+template<typename Iterator>
+Iterator merge(Iterator ii1, Iterator end1, Iterator ii2, Iterator end2, Iterator oi, Iterator endO);
 
 template <typename T>
 class Search{
@@ -50,6 +50,9 @@ private:
 
     T* dists;
 
+    int chunkSize;
+    int remainder;
+
 };
 
 // TODO the contructor must specify the number of cores for the openMP version
@@ -57,6 +60,10 @@ template<typename T>
 CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numThreads(numCores), nearestNeighbors(datasetSize) {
     assert(datasetSize > 0);
     dists = new T[spaceDim];
+
+
+    chunkSize = datasetSize / numThreads;
+    remainder = datasetSize - (chunkSize * numThreads);
 }
 
 template<typename T>
@@ -64,12 +71,15 @@ CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int num
 {
     assert(datasetSize > 0);
     spaceDim = dataset_vv.at(0).size();
+    dists = new T[spaceDim];
     dataset = new T[datasetSize * spaceDim];
     datasetAllocated = true;
     for(int i=0; i < datasetSize; i++){
         std::memcpy(dataset + (i*spaceDim), &dataset_vv[i][0], sizeof(T) * spaceDim);
     }
-    dists = new T[spaceDim];
+
+    chunkSize = datasetSize / numThreads;
+    remainder = datasetSize - (chunkSize * numThreads);
 }
 
 template<typename T>
@@ -81,9 +91,6 @@ template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
 
     omp_set_num_threads(numThreads);
-    int chunkSize = datasetSize / numThreads;
-    int remainder = datasetSize - (chunkSize * numThreads);
-
     #pragma omp parallel
     {
         // calculate distances
@@ -113,8 +120,8 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
         // sorted chunk needs to be merged
         Neighbor<T> *tmp = new Neighbor<T>[numResults];
         for (int i = 1; i < numThreads; i++) {
-            std::memcpy(tmp, &nearestNeighbors[0], sizeof(T)*numResults);
-            merge(tmp, tmp + numResults, &nearestNeighbors[i * chunkSize], &nearestNeighbors[i * chunkSize + numResults], &nearestNeighbors[0]);
+            std::memcpy(tmp, &nearestNeighbors[0], sizeof(Neighbor<T>) * numResults);
+            merge(tmp, tmp + numResults, &nearestNeighbors[i * chunkSize], &nearestNeighbors[i * chunkSize + numResults], &nearestNeighbors[0], &nearestNeighbors[numResults]);
         }
         delete [] tmp;
         // at the end of merge, nearest neighbors are the first elements of the array nearestNeighbors
@@ -140,9 +147,9 @@ CpuSearch<T>::~CpuSearch() {
 }
 
 
-template<typename InputIterator, typename OutputIterator>
-OutputIterator merge(InputIterator ii1, InputIterator end1, InputIterator ii2, InputIterator end2, OutputIterator oi){
-    while(ii1 < end1 || ii2 < end2)
+template<typename Iterator>
+Iterator merge(Iterator ii1, Iterator end1, Iterator ii2, Iterator end2, Iterator oi, Iterator endO){
+    while((ii1 < end1 || ii2 < end2) && oi < endO)
         if(ii1 < end1 && *ii1 <= *ii2)
             *(oi++) = *(ii1++);
         else
