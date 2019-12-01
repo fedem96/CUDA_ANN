@@ -47,12 +47,15 @@ private:
     std::vector<T> nnAllDistancesSqr;
     std::vector<Neighbor<T> > nearestNeighbors;
 
+    T* dists;
+
 };
 
 // TODO the contructor must specify the number of cores for the openMP version
 template<typename T>
 CpuSearch<T>::CpuSearch(T *dataset, int datasetSize, int spaceDim, int numCores) : dataset(dataset), datasetSize(datasetSize), spaceDim(spaceDim), datasetAllocated(false), numCores(numCores), nnAllIndexes(datasetSize), nnAllDistancesSqr(datasetSize), nearestNeighbors(datasetSize) {
     assert(datasetSize > 0);
+    dists = new T[spaceDim];
 }
 
 template<typename T>
@@ -65,6 +68,7 @@ CpuSearch<T>::CpuSearch(const std::vector< std::vector<T> > &dataset_vv, int num
     for(int i=0; i < datasetSize; i++){
         std::memcpy(dataset + (i*spaceDim), &dataset_vv[i][0], sizeof(T) * spaceDim);
     }
+    dists = new T[spaceDim];
 }
 
 template<typename T>
@@ -79,9 +83,10 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
     #pragma omp parallel for
     for(int i=0; i < datasetSize ; i++) {
         T dist = 0;
+        T* dataset_tmp = dataset + (i*spaceDim);
         for (int j = 0; j < spaceDim; j++) {
-            const T diff = query[j] - dataset[i * spaceDim + j];
-            dist = dist + (diff * diff);
+            const T diff = query[j] - dataset_tmp[j];
+            dist += diff * diff;
         }
 
         // dist is the square of the distance: for efficiency I use it instead of distance to find neighbors
@@ -108,6 +113,7 @@ template<typename T>
 CpuSearch<T>::~CpuSearch() {
     if(datasetAllocated)
         delete [] dataset;
+    delete [] dists;
 }
 
 

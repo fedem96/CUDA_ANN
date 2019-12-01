@@ -83,8 +83,9 @@ __global__ void _cudaDistances(const T *__restrict__ dataset, const T *__restric
         return;
     T dist = 0;
     int j;
+    const T* dataset_tmp = dataset + (i*spaceDim);
     for(j=0; j < spaceDim; j++){
-        const T diff = query[j] - dataset[i*spaceDim + j];
+        const T diff = query[j] - *(dataset_tmp++);
         dist = dist + (diff * diff);
     }
 

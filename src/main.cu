@@ -188,13 +188,15 @@ int main(int argc, char **argv) {
                 maxThreadsCPU = omp_get_max_threads()/2;
         #endif
 
-        //const int sizes[] = {10000,50000,150000,450000,1000000}; //TODO use this in final version to compare the dataset length experiment
-        const int sizes[] = {datasetSize/100, datasetSize/20, datasetSize/10, datasetSize};
+        const int sizes[] = {10000,50000,150000,450000,1000000}; //TODO use this in final version to compare the dataset length experiment
+        //const int sizes[] = {datasetSize/100, datasetSize/20, datasetSize/10, datasetSize};
         for(int n : sizes) {
 
             std::vector <std::vector<float>> host_dataset_vv_tmp;
             host_dataset_vv_tmp = std::vector < std::vector < float > > (host_dataset_vv.begin(), host_dataset_vv.begin() + n);
             host_dataset_vv_tmp.shrink_to_fit();
+
+            std::cout << "Begin test on dataset size: " << n << std::endl;
 
             //// CPU evaluation
             for (int numCores = 1; numCores <= maxThreadsCPU; numCores++) {
@@ -220,10 +222,11 @@ int main(int argc, char **argv) {
 //                    if(block != bestBlock) // TODO scegliere best
 //                        continue;
 
+                    std::cout << "Test on GPU, block_size: " << block << std::endl;
                     start = std::chrono::high_resolution_clock::now();
                     s = new CudaSearch<float>(host_dataset_vv_tmp, block);
                     std::chrono::duration<double> gpuInitTime = std::chrono::high_resolution_clock::now() - start;
-                    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, true);
+                    std::chrono::duration<double> gpuEvalTime = evaluate<float>(s, host_queries_ptr, host_grTruth_vv, numQueries, numResults, false);
                     std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
                     std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
 
