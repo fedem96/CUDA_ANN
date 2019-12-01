@@ -19,7 +19,7 @@ if(CUDA_FOUND)
 
     set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
     enable_language(CUDA)
-    add_executable(CUDA_Nearest_Neighbors src/main.cu)
+    add_executable(CUDA_Nearest_Neighbors src/main.cu src/search.hpp)
 
 else()
     # using CPU
@@ -29,6 +29,6 @@ else()
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp")
     endif(OPENMP_FOUND)
 
-    add_executable(CUDA_Nearest_Neighbors src/main.cpp)
+    add_executable(CUDA_Nearest_Neighbors src/main.cpp src/search.hpp)
 
 endif(CUDA_FOUND)
