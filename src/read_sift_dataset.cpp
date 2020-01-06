@@ -87,6 +87,7 @@ bool readVecsFile(string fileName, vector< vector<U> >& vectors, bool verbose = 
 			int rawVectorSize = vectorSize-sizeof(int);
 			T* rawVectorData = new T[rawVectorSize];
 			if( !file.read(reinterpret_cast<char*>(rawVectorData), rawVectorSize) ) {
+				delete[] rawVectorData;
 				if( file.eof() )
 					break;
 				else {

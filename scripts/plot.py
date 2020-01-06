@@ -90,22 +90,22 @@ if __name__ == "__main__":
     # num_threads -> time
     xs, ys = df_to_ticks(df, independent="num_threads",
                          dependent=[lambda row: "eval_time"],
-                         where=lambda row: row["hw"] == "cpu" and row["dataset_size"] == 4000)
+                         where=lambda row: row["hw"] == "cpu" and row["dataset_size"] == max_dataset_size)
     plot_functions(xs, ys, labels=["OMP"], colors=["orange"], xlabel="num threads", ylabel="time")
     # num_threads -> speedup
     xs, ys = df_to_ticks(df, independent="num_threads",
                          dependent=[lambda row: "speedup"],
-                         where=lambda row: row["hw"] == "cpu" and row["dataset_size"] == 4000)
+                         where=lambda row: row["hw"] == "cpu" and row["dataset_size"] == max_dataset_size)
     plot_functions(xs, ys, labels=["OMP"], colors=["orange"], xlabel="num threads", ylabel="speedup")
 
     ''' GPU '''
     # num_threads -> time
     xs, ys = df_to_ticks(df, independent="num_threads",
                          dependent=[lambda row: "eval_time"],
-                         where=lambda row: row["hw"] == "gpu" and row["dataset_size"] == 4000)
+                         where=lambda row: row["hw"] == "gpu" and row["dataset_size"] == max_dataset_size)
     plot_functions(xs, ys, labels=["GPU"], colors=["green"], xlabel="threads per block", ylabel="time", mode="bar")
     # num_threads -> speedup
     xs, ys = df_to_ticks(df, independent="num_threads",
                          dependent=[lambda row: "speedup"],
-                         where=lambda row: row["hw"] == "gpu" and row["dataset_size"] == 4000)
+                         where=lambda row: row["hw"] == "gpu" and row["dataset_size"] == max_dataset_size)
     plot_functions(xs, ys, labels=["GPU"], colors=["green"], xlabel="threads per block", ylabel="speedup", mode="bar")

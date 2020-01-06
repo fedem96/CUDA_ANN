@@ -180,7 +180,7 @@ int main(int argc, char **argv) {
     try // I use this to find an exception on csv opening
     {
 
-        csvfile csv(experimentsFolder + "/ " + strNow + ".csv"); // can throw exception!
+        csvfile csv(experimentsFolder + "/" + strNow + ".csv"); // can throw exception!
         csv << "hw" << "num_threads" << "dataset_size" << "init_time" << "eval_time" << "total_time" << endrow; // header
 
         int maxThreadsCPU = 1;
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
 
             //// GPU evaluation
             #ifdef __CUDACC__
-                int cudaBlock [] = {32, 64, 128, 256, 512, 1024};
+                int cudaBlock [] = {16, 32, 64, 128, 256, 512, 1024};
                 for(int block : cudaBlock){
 //                    if(block != bestBlock) // TODO scegliere best
 //                        continue;
@@ -230,8 +230,7 @@ int main(int argc, char **argv) {
                     std::cout << "GPU init time: " << gpuInitTime.count() << std::endl;
                     std::cout << "GPU eval time: " << gpuEvalTime.count() << std::endl;
 
-                    std::string strBlock = std::to_string(block);
-                    csv << "gpu" << ("BLOCK=" + strBlock) << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
+                    csv << "gpu" << block << n << gpuInitTime.count() << gpuEvalTime.count() << gpuInitTime.count() + gpuEvalTime.count() << endrow;
                     delete s;
                 }
             #endif
