@@ -90,17 +90,25 @@ T comparator(const void * a, const void * b){
 template<typename T>
 void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> &nnDistancesSqr, const int &numResults){
 
+
+//    omp_sched_t o;
+//    omp_set_schedule(omp_sched_static,1);
+//    int x;
+//    omp_get_schedule(&o, &x);
+//    std::cout << o << std::endl;
+
     omp_set_num_threads(numThreads);
-    #pragma omp parallel
-    {
+    //#pragma omp parallel
+    //{
         // calculate distances
-        #pragma omp for
+        #pragma omp parallel for schedule(static)
         for (int i = 0; i < datasetSize; i++) {
             T dist = 0;
             T *dataset_tmp = dataset + (i * spaceDim);
             for (int j = 0; j < spaceDim; j++) {
                 const T diff = query[j] - dataset_tmp[j];
                 dist += diff * diff;
+
             }
 
             // dist is the square of the distance: for efficiency I use it instead of distance to find neighbors
@@ -109,11 +117,11 @@ void CpuSearch<T>::search(T* query, std::vector<int> &nnIndexes, std::vector<T> 
         }
 
         // sort by increasing distance
-        #pragma omp for
+        #pragma omp parallel for schedule(static)
         for (int i = 0; i < numThreads; i++) {  // each thread sorts its chunk
             qsort(&nearestNeighbors[i * chunkSize], chunkSize + (i + 1 == numThreads ? remainder : 0), sizeof(Neighbor<T>), comparator);
         }
-    }
+    //}
 
     // in single-thread, no merge is required
     if(numThreads != 1) {
