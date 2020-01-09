@@ -70,6 +70,8 @@ if __name__ == "__main__":
     df = add_speedups(df)
 
     max_dataset_size = df['dataset_size'].max()
+    best_gpu_time = df.where(df['dataset_size'] == max_dataset_size).where(df["hw"] == "gpu")["eval_time"].min()
+    best_gpu_block = df.where(df['dataset_size'] == max_dataset_size).where(df["hw"] == "gpu").where(df["eval_time"] == best_gpu_time)["num_threads"].max()
 
     ''' Comparison: CPU_sequential vs CPU_OMP vs GPU '''
     # dataset_size -> time
@@ -77,13 +79,13 @@ if __name__ == "__main__":
                          dependent=[lambda row: "eval_time" if row["hw"] == "cpu" and row["num_threads"] == 1 else None,
                                     lambda row: "eval_time" if row["hw"] == "cpu" and row["num_threads"] == 6 else None,
                                     lambda row: "eval_time" if row["hw"] == "gpu" else None],
-                         where=lambda row: row["num_threads"] == 1 or row["num_threads"] == 6 or row["num_threads"] == 1024)
+                         where=lambda row: row["num_threads"] == 1 or row["num_threads"] == 6 or row["num_threads"] == best_gpu_block)
     plot_functions(xs, ys, labels=["SEQ", "OMP", "GPU"], colors=["blue", "orange", "green"], xlabel="dataset size", ylabel="time")
     # dataset_size -> speedup
     xs, ys = df_to_ticks(df, independent="dataset_size",
                          dependent=[lambda row: "speedup" if row["hw"] == "cpu" and row["num_threads"] == 6 else None,
                                     lambda row: "speedup" if row["hw"] == "gpu" else None],
-                         where=lambda row: row["num_threads"] == 6 or row["num_threads"] == 1024)
+                         where=lambda row: row["num_threads"] == 6 or row["num_threads"] == best_gpu_block)
     plot_functions(xs, ys, labels=["OMP", "GPU"], colors=["orange", "green"], xlabel="dataset size", ylabel="speedup")
 
     ''' OMP '''
