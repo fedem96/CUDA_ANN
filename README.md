@@ -9,3 +9,18 @@ The aim of this project is to measure the speedup obtained for the algorithm K N
 
 ## Datasets
 Sift and siftsmall datasets can be found in http://corpus-texmex.irisa.fr, where they are called ANN_SIFT1M and ANN_SIFT10K respectively.
+
+## Experiments
+### Download SIFT dataset
+* `wget ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz`
+* `mkdir data`
+* `tar -xf sift.tar.gz -C data`
+
+### Download this repo
+* `git clone https://github.com/fedem96/Nearest_Neighbors.git`
+
+### Run the experiments
+* `mkdir experiments`
+* `cd Nearest_Neighbors`
+* `nvcc src/main.cu -Xcompiler -fopenmp -o run`
+* `./run -d ../data -e ../experiments`
