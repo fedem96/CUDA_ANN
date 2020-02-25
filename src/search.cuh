@@ -1,10 +1,11 @@
 #ifndef CUDA_SEARCH_CUH
 #define CUDA_SEARCH_CUH
 
+#include <thrust/sort.h>
+#include <thrust/device_ptr.h>
 #include <cuda.h>
 #include <iostream>
 #include <vector>
-#include <thrust/sort.h>
 #include "search.hpp"
 
 #define CUDA_CHECK_RETURN(value) { gpuAssert((value), __FILE__, __LINE__); }

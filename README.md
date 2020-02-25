@@ -1,5 +1,5 @@
 # CUDA_Nearest_Neighbors
-![alt text](https://github.com/fedem96/Nearest_Neighbors/blob/master/img/k-nn.png)
+![alt text](img/k-nn.png)
 
 The aim of this project is to measure the speedup obtained for the algorithm K Nearest Neighbors when implemented in OpenMP/CUDA with respect to the C++ sequential version.
 
@@ -24,5 +24,16 @@ Sift and siftsmall datasets can be found in http://corpus-texmex.irisa.fr, where
 ### Run the experiments
 * `mkdir experiments`
 * `cd Nearest_Neighbors`
-* `nvcc src/main.cu -Xcompiler -fopenmp -o run`
+* `nvcc -O3 src/main.cu --gpu-architecture=compute_61 -Xcompiler -fopenmp -o run`
 * `./run -d ../data -e ../experiments`
+
+
+## Results
+### OpenMP
+![alt text](img/openmp.png)
+
+### CUDA
+![alt text](img/cuda.png)
+
+### OpenMP
+![alt text](img/comparison.png)

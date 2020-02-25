@@ -18,6 +18,7 @@ if(CUDA_FOUND)
     endif(OPENMP_FOUND)
 
     set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --gpu-architecture=sm_61")
     enable_language(CUDA)
     add_executable(CUDA_Nearest_Neighbors src/main.cu src/search.hpp)
 

@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
                 maxThreadsCPU = omp_get_max_threads()/2;
         #endif
 
-        const int sizes[] = {10000,50000,150000,450000,1000000}; //TODO use this in final version to compare the dataset length experiment
+        const int sizes[] = {10000,50000,150000,450000,1000000};
         //const int sizes[] = {datasetSize/100, datasetSize/20, datasetSize/10, datasetSize};
         for(int n : sizes) {
 
@@ -217,7 +217,7 @@ int main(int argc, char **argv) {
 
             //// GPU evaluation
             #ifdef __CUDACC__
-                int cudaBlock [] = {16, 32, 64, 128, 256, 512, 1024};
+                int cudaBlock [] = {8, 16, 32, 64, 128, 256, 512, 1024};
                 for(int block : cudaBlock){
 //                    if(block != bestBlock) // TODO scegliere best
 //                        continue;
