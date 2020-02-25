@@ -35,5 +35,5 @@ Sift and siftsmall datasets can be found in http://corpus-texmex.irisa.fr, where
 ### CUDA
 ![alt text](img/cuda.png)
 
-### OpenMP
+### Comparison
 ![alt text](img/comparison.png)
