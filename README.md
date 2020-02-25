@@ -1,4 +1,6 @@
 # CUDA_Nearest_Neighbors
+![alt text](https://github.com/fedem96/Nearest_Neighbors/blob/master/img/k-nn.png)
+
 The aim of this project is to measure the speedup obtained for the algorithm K Nearest Neighbors when implemented in OpenMP/CUDA with respect to the C++ sequential version.
 
 ## System configuration
